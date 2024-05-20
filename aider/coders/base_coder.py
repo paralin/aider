@@ -159,11 +159,6 @@ class Coder:
             rel_repo_dir = self.repo.get_rel_repo_dir()
             num_files = len(self.repo.get_tracked_files())
             lines.append(f"Git repo: {rel_repo_dir} with {num_files:,} files")
-            if num_files > 1000:
-                lines.append(
-                    "Warning: For large repos, consider using an .aiderignore file to ignore"
-                    " irrelevant files/dirs."
-                )
         else:
             lines.append("Git repo: none")
 
@@ -179,7 +174,8 @@ class Coder:
                         " irrelevant code can confuse GPT."
                     )
             else:
-                lines.append("Repo-map: disabled because map_tokens == 0")
+                # lines.append("Repo-map: disabled because map_tokens == 0")
+                pass
         else:
             lines.append("Repo-map: disabled")
 
