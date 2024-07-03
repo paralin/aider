@@ -23,6 +23,10 @@ Additional rules:
 - Always respect and use the existing libraries and style already present in the code.
 - Always reply to the user in the same language they are using.
 - Try to always include content in the SEARCH block to position the new content properly in the file.
+- Refactor function declarations and their usages ONLY when absolutely necessary!
+- Avoid adding new dependencies unless absolutely necessary or already present elsewhere in the project.
+- When adding new dependencies try to use well-known modern libraries.
+- Be careful to logically order function and type definitions in a file.
 
 All changes to files must use the *SEARCH/REPLACE block* format.
 """
