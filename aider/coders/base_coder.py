@@ -282,6 +282,8 @@ class Coder:
                 self.root = self.repo.root
             except FileNotFoundError:
                 self.repo = None
+        else:
+            self.root = os.getcwd()
 
         for fname in fnames:
             fname = Path(fname)
@@ -300,9 +302,8 @@ class Coder:
                 continue
 
             self.abs_fnames.add(fname)
-            self.check_added_files()
 
-        if not self.repo:
+        if not use_git:
             self.find_common_root()
 
         if main_model.use_repo_map and self.repo and self.gpt_prompts.repo_content_prefix:
@@ -1307,34 +1308,6 @@ class Coder:
         self.check_for_dirty_commit(path)
 
         return True
-
-    warning_given = False
-
-    def check_added_files(self):
-        if self.warning_given:
-            return
-
-        warn_number_of_files = 4
-        warn_number_of_tokens = 20 * 1024
-
-        num_files = len(self.abs_fnames)
-        if num_files < warn_number_of_files:
-            return
-
-        tokens = 0
-        for fname in self.abs_fnames:
-            relative_fname = self.get_rel_fname(fname)
-            if is_image_file(relative_fname):
-                continue
-            content = self.io.read_text(fname)
-            tokens += self.main_model.token_count(content)
-
-        if tokens < warn_number_of_tokens:
-            return
-
-        self.io.tool_error("Warning: it's best to only add files that need changes to the chat.")
-        self.io.tool_error(urls.edit_errors)
-        self.warning_given = True
 
     def prepare_to_edit(self, edits):
         res = []
