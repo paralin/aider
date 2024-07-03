@@ -1,0 +1,13 @@
+auto-commits: false
+dark-mode: true
+map-tokens: 0
+git: true
+auto-lint: false
+auto-test: false
+skip-check-update: true
+check-update: false
+show-model-warnings: false
+
+# opus: true
+sonnet: true
+# model: gpt-4o
