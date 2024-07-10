@@ -5,11 +5,10 @@ import sys
 from pathlib import Path
 
 import git
-import openai
-from prompt_toolkit.completion import Completion
 
 from aider import models, prompts, voice
-from aider.litellm import litellm
+from aider.help import Help
+from aider.llm import litellm
 from aider.scrape import Scraper
 from aider.utils import is_image_file
 
@@ -34,6 +33,8 @@ class Commands:
 
         self.voice_language = voice_language
 
+        self.help = None
+
     def cmd_model(self, args):
         "Switch to a new LLM"
 
@@ -42,11 +43,9 @@ class Commands:
         models.sanity_check_models(self.io, model)
         raise SwitchModel(model)
 
-    def completions_model(self, partial):
+    def completions_model(self):
         models = litellm.model_cost.keys()
-        for model in models:
-            if partial.lower() in model.lower():
-                yield Completion(model, start_position=-len(partial))
+        return models
 
     def cmd_models(self, args):
         "Search the list of available models"
@@ -83,20 +82,24 @@ class Commands:
     def is_command(self, inp):
         return inp[0] in "/!"
 
+    def get_completions(self, cmd):
+        assert cmd.startswith("/")
+        cmd = cmd[1:]
+
+        fun = getattr(self, f"completions_{cmd}", None)
+        if not fun:
+            return []
+        return sorted(fun())
+
     def get_commands(self):
         commands = []
         for attr in dir(self):
-            if attr.startswith("cmd_"):
-                commands.append("/" + attr[4:])
+            if not attr.startswith("cmd_"):
+                continue
+            cmd = attr[4:]
+            commands.append("/" + cmd)
 
         return commands
-
-    def get_command_completions(self, cmd_name, partial):
-        cmd_completions_method_name = f"completions_{cmd_name}"
-        cmd_completions_method = getattr(self, cmd_completions_method_name, None)
-        if cmd_completions_method:
-            for completion in cmd_completions_method(partial):
-                yield completion
 
     def do_run(self, cmd_name, args):
         cmd_method_name = f"cmd_{cmd_name}"
@@ -330,8 +333,9 @@ class Commands:
                 )
                 return
 
-        last_commit = self.coder.repo.repo.head.commit
-        if last_commit.hexsha[:7] != self.coder.last_aider_commit_hash:
+        last_commit_hash = self.coder.repo.repo.head.commit.hexsha[:7]
+        last_commit_message = self.coder.repo.repo.head.commit.message.strip()
+        if last_commit_hash not in self.coder.aider_commit_hashes:
             self.io.tool_error("The last commit was not made by aider in this chat session.")
             self.io.tool_error(
                 "You could try `/git reset --hard HEAD^` but be aware that this is a destructive"
@@ -345,9 +349,12 @@ class Commands:
         # Move the HEAD back before the latest commit
         self.coder.repo.repo.git.reset("--soft", "HEAD~1")
 
-        self.io.tool_output(
-            f"Commit `{self.coder.last_aider_commit_hash}` was reset and removed from git.\n"
-        )
+        self.io.tool_output(f"Removed: {last_commit_hash} {last_commit_message}")
+
+        # Get the current HEAD after undo
+        current_head_hash = self.coder.repo.repo.head.commit.hexsha[:7]
+        current_head_message = self.coder.repo.repo.head.commit.message.strip()
+        self.io.tool_output(f"HEAD is: {current_head_hash} {current_head_message}")
 
         if self.coder.main_model.send_undo_reply:
             return prompts.undo_command_reply
@@ -358,16 +365,17 @@ class Commands:
             self.io.tool_error("No git repository found.")
             return
 
-        if not self.coder.last_aider_commit_hash:
-            self.io.tool_error("No previous aider commit found.")
+        last_commit_hash = self.coder.repo.repo.head.commit.hexsha[:7]
+
+        if last_commit_hash not in self.coder.aider_commit_hashes:
+            self.io.tool_error(f"Last commit {last_commit_hash} was not an aider commit.")
             self.io.tool_error("You could try `/git diff` or `/git diff HEAD^`.")
             return
 
-        commits = f"{self.coder.last_aider_commit_hash}~1"
         diff = self.coder.repo.diff_commits(
             self.coder.pretty,
-            commits,
-            self.coder.last_aider_commit_hash,
+            "HEAD^",
+            "HEAD",
         )
 
         # don't use io.tool_output() because we don't want to log or further colorize
@@ -378,12 +386,11 @@ class Commands:
             fname = f'"{fname}"'
         return fname
 
-    def completions_add(self, partial):
+    def completions_add(self):
         files = set(self.coder.get_all_relative_files())
         files = files - set(self.coder.get_inchat_relative_files())
-        for fname in files:
-            if partial.lower() in fname.lower():
-                yield Completion(self.quote_fname(fname), start_position=-len(partial))
+        files = [self.quote_fname(fn) for fn in files]
+        return files
 
     def glob_filtered_to_repo(self, pattern):
         try:
@@ -484,12 +491,10 @@ class Commands:
         reply = prompts.added_files.format(fnames=", ".join(added_fnames))
         return reply
 
-    def completions_drop(self, partial):
+    def completions_drop(self):
         files = self.coder.get_inchat_relative_files()
-
-        for fname in files:
-            if partial.lower() in fname.lower():
-                yield Completion(self.quote_fname(fname), start_position=-len(partial))
+        files = [self.quote_fname(fn) for fn in files]
+        return files
 
     def cmd_drop(self, args=""):
         "Remove files from the chat session to free up context space"
@@ -623,32 +628,75 @@ class Commands:
         for file in chat_files:
             self.io.tool_output(f"  {file}")
 
-    def cmd_help(self, args):
-        "Show help about all commands"
+    def basic_help(self):
         commands = sorted(self.get_commands())
+        pad = max(len(cmd) for cmd in commands)
+        pad = "{cmd:" + str(pad) + "}"
         for cmd in commands:
             cmd_method_name = f"cmd_{cmd[1:]}"
             cmd_method = getattr(self, cmd_method_name, None)
+            cmd = pad.format(cmd=cmd)
             if cmd_method:
                 description = cmd_method.__doc__
                 self.io.tool_output(f"{cmd} {description}")
             else:
                 self.io.tool_output(f"{cmd} No description available.")
+        self.io.tool_output()
+        self.io.tool_output("Use `/help <question>` to ask questions about how to use aider.")
+
+    def cmd_help(self, args):
+        "Ask questions about aider"
+
+        if not args.strip():
+            self.basic_help()
+            return
+
+        from aider.coders import Coder
+
+        if not self.help:
+            self.help = Help()
+
+        coder = Coder.create(
+            main_model=self.coder.main_model,
+            io=self.io,
+            from_coder=self.coder,
+            edit_format="help",
+            summarize_from_coder=False,
+            map_tokens=512,
+            map_mul_no_files=1,
+        )
+        user_msg = self.help.ask(args)
+        user_msg += """
+# Announcement lines from when this session of aider was launched:
+
+"""
+        user_msg += "\n".join(self.coder.get_announcements()) + "\n"
+
+        assistant_msg = coder.run(user_msg)
+
+        self.coder.cur_messages += [
+            dict(role="user", content=user_msg),
+            dict(role="assistant", content=assistant_msg),
+        ]
 
     def get_help_md(self):
         "Show help about all commands in markdown"
 
-        res = ""
+        res = """
+|Command|Description|
+|:------|:----------|
+"""
         commands = sorted(self.get_commands())
         for cmd in commands:
             cmd_method_name = f"cmd_{cmd[1:]}"
             cmd_method = getattr(self, cmd_method_name, None)
             if cmd_method:
                 description = cmd_method.__doc__
-                res += f"- **{cmd}** {description}\n"
+                res += f"| **{cmd}** | {description} |\n"
             else:
-                res += f"- **{cmd}**\n"
+                res += f"| **{cmd}** | |\n"
 
+        res += "\n"
         return res
 
     def cmd_voice(self, args):
@@ -685,7 +733,7 @@ class Commands:
 
         try:
             text = self.voice.record_and_transcribe(history, language=self.voice_language)
-        except openai.OpenAIError as err:
+        except litellm.OpenAIError as err:
             self.io.tool_error(f"Unable to use OpenAI whisper model: {err}")
             return
 

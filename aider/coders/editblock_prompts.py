@@ -29,6 +29,10 @@ Additional rules:
 - Be careful to logically order function and type definitions in a file.
 
 All changes to files must use the *SEARCH/REPLACE block* format.
+
+Keep this info about the user's system in mind:
+{platform}
+
 """
 
     example_messages = [

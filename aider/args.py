@@ -142,13 +142,13 @@ def get_parser(default_config_files, git_root):
     group.add_argument(
         "--model-settings-file",
         metavar="MODEL_SETTINGS_FILE",
-        default=None,
+        default=".aider.model.settings.yml",
         help="Specify a file with aider model settings for unknown models",
     )
     group.add_argument(
         "--model-metadata-file",
         metavar="MODEL_METADATA_FILE",
-        default=None,
+        default=".aider.model.metadata.json",
         help="Specify a file with context window and costs for unknown models",
     )
     group.add_argument(
@@ -385,7 +385,6 @@ def get_parser(default_config_files, git_root):
     )
     group.add_argument(
         "--test-cmd",
-        action="append",
         help="Specify command to run tests",
         default=[],
     )
@@ -461,6 +460,12 @@ def get_parser(default_config_files, git_root):
         "--show-prompts",
         action="store_true",
         help="Print the system prompts and exit (debug)",
+        default=False,
+    )
+    group.add_argument(
+        "--exit",
+        action="store_true",
+        help="Do all startup activities then exit before accepting user input (debug)",
         default=False,
     )
     group.add_argument(
