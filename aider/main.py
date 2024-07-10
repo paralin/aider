@@ -527,8 +527,6 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
         args.pretty = False
         io.tool_output("VSCode terminal detected, pretty output has been disabled.")
 
-    io.tool_output("Use /help <question> to ask for help, run with --help to see cmd line args")
-
     if args.message:
         io.add_to_input_history(args.message)
         io.tool_output()
