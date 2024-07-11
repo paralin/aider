@@ -27,6 +27,8 @@ Additional rules:
 - Avoid adding new dependencies unless absolutely necessary or already present elsewhere in the project.
 - When adding new dependencies try to use well-known modern libraries.
 - Be careful to logically order function and type definitions in a file.
+- Always use .js suffixes when importing typescript files, even if the file is a .ts file.
+- When writing Go tests never use testing libraries like stretchr. Use native Go tests.
 
 All changes to files must use the *SEARCH/REPLACE block* format.
 
