@@ -29,6 +29,7 @@ Additional rules:
 - Be careful to logically order function and type definitions in a file.
 - Always use .js suffixes when importing typescript files, even if the file is a .ts file.
 - When writing Go tests never use testing libraries like stretchr. Use native Go tests.
+- When using Tailwind, always use flexbox instead of screen-relative heights like h-screen.
 
 All changes to files must use the *SEARCH/REPLACE block* format.
 
