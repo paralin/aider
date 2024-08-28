@@ -1,9 +1,12 @@
 ---
 highlight_image: /assets/leaderboard.jpg
 nav_order: 950
+description: Quantitative benchmarks of LLM code editing skill.
 ---
 
+
 # Aider LLM Leaderboards
+{: .no_toc }
 
 Aider works best with LLMs which are good at *editing* code, not just good at writing
 code.
@@ -15,10 +18,18 @@ The leaderboards below report the results from a number of popular LLMs.
 While [aider can connect to almost any LLM](/docs/llms.html),
 it works best with models that score well on the benchmarks.
 
+See the following sections for benchmark
+results and additional information:
+- TOC
+{:toc}
 
 ## Code editing leaderboard
 
-[Aider's code editing benchmark](/docs/benchmarks.html#the-benchmark) asks the LLM to edit python source files to complete 133 small coding exercises. This benchmark measures the LLM's coding ability, but also whether it can consistently emit code edits in the format specified in the system prompt.
+[Aider's code editing benchmark](/docs/benchmarks.html#the-benchmark) asks the LLM to edit python source files to complete 133 small coding exercises
+from Exercism. 
+This measures the LLM's coding ability, and whether it can
+write new code that integrates into existing code.
+The model also has to successfully apply all its changes to the source file without human intervention.
 
 <table style="width: 100%; max-width: 800px; margin: auto; border-collapse: collapse; box-shadow: 0 2px 4px rgba(0,0,0,0.1); font-size: 14px;">
   <thead style="background-color: #f2f2f2;">
@@ -57,21 +68,49 @@ it works best with models that score well on the benchmarks.
         backgroundColor: 'rgba(54, 162, 235, 0.2)',
         borderColor: 'rgba(54, 162, 235, 1)',
         borderWidth: 1
-      },
-      {
-        label: 'Percent using correct edit format',
-        data: [],
-        backgroundColor: 'rgba(255, 99, 132, 0.2)',
-        borderColor: 'rgba(255, 99, 132, 1)',
-        borderWidth: 1
       }]
     };
 
+    var allData = [];
     {% for row in edit_sorted %}
-      leaderboardData.labels.push('{{ row.model }}');
-      leaderboardData.datasets[0].data.push({{ row.pass_rate_2 }});
-      leaderboardData.datasets[1].data.push({{ row.percent_cases_well_formed }});
+      allData.push({
+        model: '{{ row.model }}',
+        pass_rate_2: {{ row.pass_rate_2 }},
+        percent_cases_well_formed: {{ row.percent_cases_well_formed }}
+      });
     {% endfor %}
+
+    function updateChart() {
+      var selectedRows = document.querySelectorAll('tr.selected');
+      var showAll = selectedRows.length === 0;
+
+      leaderboardData.labels = [];
+      leaderboardData.datasets[0].data = [];
+
+      allData.forEach(function(row, index) {
+        var rowElement = document.getElementById('edit-row-' + index);
+        if (showAll) {
+          rowElement.classList.remove('selected');
+        }
+        if (showAll || rowElement.classList.contains('selected')) {
+          leaderboardData.labels.push(row.model);
+          leaderboardData.datasets[0].data.push(row.pass_rate_2);
+        }
+      });
+
+      leaderboardChart.update();
+    }
+
+    var tableBody = document.querySelector('table tbody');
+    allData.forEach(function(row, index) {
+      var tr = tableBody.children[index];
+      tr.id = 'edit-row-' + index;
+      tr.style.cursor = 'pointer';
+      tr.onclick = function() {
+        this.classList.toggle('selected');
+        updateChart();
+      };
+    });
 
     var leaderboardChart = new Chart(ctx, {
       type: 'bar',
@@ -89,8 +128,25 @@ it works best with models that score well on the benchmarks.
         }
       }
     });
+
+    updateChart();
   });
 </script>
+<style>
+  tr.selected {
+    color: #0056b3;
+  }
+  table {
+    table-layout: fixed;
+  }
+  td, th {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+  td:nth-child(3), td:nth-child(4) {
+    font-size: 12px;
+  }
+</style>
 
 ## Code refactoring leaderboard
 
@@ -137,21 +193,49 @@ Therefore, results are available for fewer models.
         backgroundColor: 'rgba(54, 162, 235, 0.2)',
         borderColor: 'rgba(54, 162, 235, 1)',
         borderWidth: 1
-      },
-      {
-        label: 'Percent using correct edit format',
-        data: [],
-        backgroundColor: 'rgba(255, 99, 132, 0.2)',
-        borderColor: 'rgba(255, 99, 132, 1)',
-        borderWidth: 1
       }]
     };
 
+    var allData = [];
     {% for row in refac_sorted %}
-      leaderboardData.labels.push('{{ row.model }}');
-      leaderboardData.datasets[0].data.push({{ row.pass_rate_1 }});
-      leaderboardData.datasets[1].data.push({{ row.percent_cases_well_formed }});
+      allData.push({
+        model: '{{ row.model }}',
+        pass_rate_1: {{ row.pass_rate_1 }},
+        percent_cases_well_formed: {{ row.percent_cases_well_formed }}
+      });
     {% endfor %}
+
+    function updateChart() {
+      var selectedRows = document.querySelectorAll('tr.selected');
+      var showAll = selectedRows.length === 0;
+
+      leaderboardData.labels = [];
+      leaderboardData.datasets[0].data = [];
+
+      allData.forEach(function(row, index) {
+        var rowElement = document.getElementById('refac-row-' + index);
+        if (showAll) {
+          rowElement.classList.remove('selected');
+        }
+        if (showAll || rowElement.classList.contains('selected')) {
+          leaderboardData.labels.push(row.model);
+          leaderboardData.datasets[0].data.push(row.pass_rate_1);
+        }
+      });
+
+      leaderboardChart.update();
+    }
+
+    var tableBody = document.querySelectorAll('table tbody')[1];
+    allData.forEach(function(row, index) {
+      var tr = tableBody.children[index];
+      tr.id = 'refac-row-' + index;
+      tr.style.cursor = 'pointer';
+      tr.onclick = function() {
+        this.classList.toggle('selected');
+        updateChart();
+      };
+    });
 
     var leaderboardChart = new Chart(ctx, {
       type: 'bar',
@@ -169,6 +253,8 @@ Therefore, results are available for fewer models.
         }
       }
     });
+
+    updateChart();
   });
 </script>
 
@@ -209,3 +295,32 @@ See the
 for information on running aider's code editing benchmarks.
 Submit results by opening a PR with edits to the
 [benchmark results data files](https://github.com/paul-gauthier/aider/blob/main/website/_data/).
+
+
+<p class="post-date">
+By Paul Gauthier,
+last updated
+<!--[[[cog
+import subprocess
+import datetime
+
+files = [
+    'aider/website/docs/leaderboards/index.md',
+    'aider/website/_data/edit_leaderboard.yml',
+    'aider/website/_data/refactor_leaderboard.yml'
+]
+
+def get_last_modified_date(file):
+    result = subprocess.run(['git', 'log', '-1', '--format=%ct', file], capture_output=True, text=True)
+    if result.returncode == 0:
+        timestamp = int(result.stdout.strip())
+        return datetime.datetime.fromtimestamp(timestamp)
+    return datetime.datetime.min
+
+mod_dates = [get_last_modified_date(file) for file in files]
+latest_mod_date = max(mod_dates)
+cog.out(f"{latest_mod_date.strftime('%B %d, %Y.')}")
+]]]-->
+August 28, 2024.
+<!--[[[end]]]-->
+</p>

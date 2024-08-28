@@ -26,24 +26,33 @@ command to print them on stdout/stderr
 and return a non-zero exit code.
 This is how most linters normally operate.
 
+By default, aider will lint any files which it edits.
+You can disable this with the `--no-auto-lint` switch.
+
 ## Testing
 
-You can configure aider to run your test suite
-after each time the AI edits your code
-using the `--test-cmd <cmd>` switch.
-
+You can run tests with `/test <test-command>`.
 Aider will run the test command without any arguments.
 If there are test errors, aider expects the
 command to print them on stdout/stderr
 and return a non-zero exit code.
-This is how most test tools normally operate.
+
+Aider will try and fix any errors
+if the command returns a non-zero exit code.
+
+You can configure aider to run your test suite
+after each time the AI edits your code
+using the `--test-cmd <test-command>` and
+`--auto-test` switch.
+
+
 
 ## Compiled languages
 
 If you want to have aider compile code after each edit, you
 can use the lint and test commands to achieve this.
 
-- You might want want to recompile each file which was modified
+- You might want to recompile each file which was modified
 to check for compile errors.
 To do this,
 provide a `--lint-cmd` which both lints and compiles the file.
@@ -55,5 +64,28 @@ provide a `--test-cmd` which both builds and tests the project.
 You could create a small shell script for this.
 Or you may be able to do something as simple as
 `--test-cmd "dotnet build && dotnet test"`.
+
+## Manually running code
+
+You can use the `/run` command in the chat to run your code
+and optionally share the output with aider.
+This can be useful to share error messages or to show aider
+the code's output before asking for changes or corrections.
+
+<div class="chat-transcript" markdown="1">
+> Aider v0.43.5-dev  
+
+#### /run python myscript.py
+
+```
+Traceback (most recent call last):  
+ File "myscript.py", line 22, in \<module\ 
+   raise ValueError("something bad happened")  
+ValueError: something bad happened  
+```
+
+> Add the output to the chat? y  
+
+</div>
 
 

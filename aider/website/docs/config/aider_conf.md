@@ -21,6 +21,15 @@ load whichever is found first.
 
 {% include env-keys-tip.md %}
 
+## A note on lists
+
+The syntax for specifying a list of values is not standard yaml.
+Instead, use this format:
+
+```
+read: [CONVENTIONS.md, anotherfile.txt, thirdfile.py]
+```
+
 ## Sample YAML config file
 
 Below is a sample of the YAML config file, which you
@@ -38,7 +47,7 @@ cog.outl("```")
 ]]]-->
 ```
 ##########################################################
-# Sample .aider.conf.yaml
+# Sample .aider.conf.yml
 # This file lists *all* the valid configuration entries.
 # Place in your home dir, or at the root of your git repo.
 ##########################################################
@@ -74,14 +83,20 @@ cog.outl("```")
 ## Use gpt-4-0613 model for the main chat
 #4: false
 
-## Use gpt-4o model for the main chat
+## Use gpt-4o-2024-08-06 model for the main chat
 #4o: false
+
+## Use gpt-4o-mini model for the main chat
+#mini: false
 
 ## Use gpt-4-1106-preview model for the main chat
 #4-turbo: false
 
 ## Use gpt-3.5-turbo model for the main chat
 #35turbo: false
+
+## Use deepseek/deepseek-coder model for the main chat
+#deepseek: false
 
 #################
 # Model Settings:
@@ -122,8 +137,20 @@ cog.outl("```")
 ## Only work with models that have meta-data available (default: True)
 #show-model-warnings: true
 
-## Max number of tokens to use for repo map, use 0 to disable (default: 1024)
-#map-tokens: true
+## Suggested number of tokens to use for repo map, use 0 to disable (default: 1024)
+#map-tokens:
+
+## Control how often the repo map is refreshed (default: auto)
+#map-refresh: auto
+
+## Enable caching of prompts (default: False)
+#cache-prompts: false
+
+## Number of times to ping at 5min intervals to keep prompt cache warm (default: 0)
+#cache-keepalive-pings: false
+
+## Multiplier for map tokens when no files are specified (default: 2)
+#map-multiplier-no-files: true
 
 ## Maximum number of tokens to use for chat history. If not specified, uses the model's max_chat_history_tokens.
 #max-chat-history-tokens:
@@ -191,6 +218,9 @@ cog.outl("```")
 ## Specify the aider ignore file (default: .aiderignore in git root)
 #aiderignore: .aiderignore
 
+## Only consider files in the current subtree of the git repository
+#subtree-only: false
+
 ## Enable/disable auto commit of LLM changes (default: True)
 #auto-commits: true
 
@@ -203,17 +233,23 @@ cog.outl("```")
 ## Attribute aider commits in the git committer name (default: True)
 #attribute-committer: true
 
-## Prefix commit messages with 'aider: ' (default: False)
-#attribute-commit-message: false
+## Prefix commit messages with 'aider: ' if aider authored the changes (default: False)
+#attribute-commit-message-author: false
+
+## Prefix all commit messages with 'aider: ' (default: False)
+#attribute-commit-message-committer: false
+
+## Commit all pending changes with a suitable commit message, then exit
+#commit: false
+
+## Specify a custom prompt for generating commit messages
+#commit-prompt:
 
 ## Perform a dry run without modifying files (default: False)
 #dry-run: false
 
 ########################
 # Fixing and committing:
-
-## Commit all pending changes with a suitable commit message, then exit
-#commit: false
 
 ## Lint and fix provided files, or dirty files if none provided
 #lint: false
@@ -236,6 +272,12 @@ cog.outl("```")
 #################
 # Other Settings:
 
+## specify a file to edit (can be used multiple times)
+#file:
+
+## specify a read-only file (can be used multiple times)
+#read:
+
 ## Use VI editing mode in the terminal (default: False)
 #vim: false
 
@@ -246,10 +288,16 @@ cog.outl("```")
 #version:
 
 ## Check for updates and return status in the exit code
-#check-update: false
+#just-check-update: false
 
-## Skips checking for the update when the program runs
-#skip-check-update: false
+## Check for new aider versions on launch
+#check-update: true
+
+## Install the latest version from the main branch
+#install-main-branch: false
+
+## Upgrade aider to the latest version from PyPI
+#upgrade: false
 
 ## Apply the changes from the given file instead of running the chat (debug)
 #apply:
@@ -283,5 +331,8 @@ cog.outl("```")
 
 ## Run aider in your browser
 #gui: false
+
+## Enable/disable suggesting shell commands (default: True)
+#suggest-shell-commands: true
 ```
 <!--[[[end]]]-->

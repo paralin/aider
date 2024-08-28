@@ -2,7 +2,11 @@
 title: Release history
 parent: More info
 nav_order: 999
+highlight_image: /assets/blame.jpg
+description: Release notes and stats on aider writing its own code.
 ---
+
+{% include blame.md %}
 
 <!--[[[cog
 # This page is a copy of HISTORY.md, adding the front matter above.
@@ -11,6 +15,243 @@ cog.out(text)
 ]]]-->
 
 # Release history
+
+### Aider v0.54.3
+
+- Dependency `watchdog<5` for docker image.
+
+### Aider v0.54.2
+
+- When users launch aider in their home dir, help them find/create a repo in a subdir.
+- Added missing `pexpect` dependency.
+
+### Aider v0.54.0
+
+- Added model settings for `gemini/gemini-1.5-pro-exp-0827` and `gemini/gemini-1.5-flash-exp-0827`.
+- Shell and `/run` commands can now be interactive in environments where a pty is available.
+- Optionally share output of suggested shell commands back to the LLM.
+- New `--[no-]suggest-shell-commands` switch to configure shell commands.
+- Performance improvements for autocomplete in large/mono repos.
+- New `--upgrade` switch to install latest version of aider from pypi.
+- Bugfix to `--show-prompt`.
+- Disabled automatic reply to the LLM on `/undo` for all models.
+- Removed pager from `/web` output.
+- Aider wrote 64% of the code in this release.
+
+### Aider v0.53.0
+
+- [Keep your prompt cache from expiring](https://aider.chat/docs/usage/caching.html#preventing-cache-expiration) with `--cache-keepalive-pings`.
+  - Pings the API every 5min to keep the cache warm.
+- You can now bulk accept/reject a series of add url and run shell confirmations.
+- Improved matching of filenames from S/R blocks with files in chat.
+- Stronger prompting for Sonnet to make edits in code chat mode.
+- Stronger prompting for the LLM to specify full file paths.
+- Improved shell command prompting.
+- Weak model now uses `extra_headers`, to support Anthropic beta features.
+- New `--install-main-branch` to update to the latest dev version of aider.
+- Improved error messages on attempt to add not-git subdir to chat.
+- Show model metadata info on `--verbose`.
+- Improved warnings when LLMs env variables aren't set.
+- Bugfix to windows filenames which contain `\_`.
+- Aider wrote 59% of the code in this release.
+
+### Aider v0.52.1
+
+- Bugfix for NameError when applying edits.
+
+### Aider v0.52.0
+
+- Aider now offers to run shell commands:
+  - Launch a browser to view updated html/css/js.
+  - Install new dependencies.
+  - Run DB migrations. 
+  - Run the program to exercise changes.
+  - Run new test cases.
+- `/read` and `/drop` now expand `~` to the home dir.
+- Show the active chat mode at aider prompt.
+- New `/reset` command to `/drop` files and `/clear` chat history.
+- New `--map-multiplier-no-files` to control repo map size multiplier when no files are in the chat.
+  - Reduced default multiplier to 2.
+- Bugfixes and improvements to auto commit sequencing.
+- Improved formatting of token reports and confirmation dialogs.
+- Default OpenAI model is now `gpt-4o-2024-08-06`.
+- Bumped dependencies to pickup litellm bugfixes.
+- Aider wrote 68% of the code in this release.
+
+### Aider v0.51.0
+
+- Prompt caching for Anthropic models with `--cache-prompts`.
+  - Caches the system prompt, repo map and `/read-only` files.
+- Repo map recomputes less often in large/mono repos or when caching enabled.
+  - Use `--map-refresh <always|files|manual|auto>` to configure.
+- Improved cost estimate logic for caching.
+- Improved editing performance on Jupyter Notebook `.ipynb` files.
+- Show which config yaml file is loaded with `--verbose`.
+- Bumped dependency versions.
+- Bugfix: properly load `.aider.models.metadata.json` data.
+- Bugfix: Using `--msg /ask ...` caused an exception.
+- Bugfix: litellm tokenizer bug for images.
+- Aider wrote 56% of the code in this release.
+
+### Aider v0.50.1
+
+- Bugfix for provider API exceptions.
+
+### Aider v0.50.0
+
+- Infinite output for DeepSeek Coder, Mistral models in addition to Anthropic's models.
+- New `--deepseek` switch to use DeepSeek Coder.
+- DeepSeek Coder uses 8k token output.
+- New `--chat-mode <mode>` switch to launch in ask/help/code modes.
+- New `/code <message>` command request a code edit while in `ask` mode.
+- Web scraper is more robust if page never idles.
+- Improved token and cost reporting for infinite output.
+- Improvements and bug fixes for `/read` only files.
+- Switched from `setup.py` to `pyproject.toml`, by @branchvincent.
+- Bug fix to persist files added during `/ask`.
+- Bug fix for chat history size in `/tokens`.
+- Aider wrote 66% of the code in this release.
+
+### Aider v0.49.1
+
+- Bugfix to `/help`.
+
+### Aider v0.49.0
+
+- Add read-only files to the chat context with `/read` and `--read`,  including from outside the git repo.
+- `/diff` now shows diffs of all changes resulting from your request, including lint and test fixes.
+- New `/clipboard` command to paste images or text from the clipboard, replaces `/add-clipboard-image`.
+- Now shows the markdown scraped when you add a url with `/web`.
+- When [scripting aider](https://aider.chat/docs/scripting.html) messages can now contain in-chat `/` commands.
+- Aider in docker image now suggests the correct command to update to latest version.
+- Improved retries on API errors (was easy to test during Sonnet outage).
+- Added `--mini` for `gpt-4o-mini`.
+- Bugfix to keep session cost accurate when using `/ask` and `/help`.
+- Performance improvements for repo map calculation.
+- `/tokens` now shows the active model.
+- Enhanced commit message attribution options:
+  - New `--attribute-commit-message-author` to prefix commit messages with 'aider: ' if aider authored the changes, replaces `--attribute-commit-message`.
+  - New `--attribute-commit-message-committer` to prefix all commit messages with 'aider: '.
+- Aider wrote 61% of the code in this release.
+
+### Aider v0.48.1
+
+- Added `openai/gpt-4o-2024-08-06`.
+- Worked around litellm bug that removes OpenRouter app headers when using `extra_headers`.
+- Improved progress indication during repo map processing.
+- Corrected instructions for upgrading the docker container to latest aider version.
+- Removed obsolete 16k token limit on commit diffs, use per-model limits.
+
+### Aider v0.48.0
+
+- Performance improvements for large/mono repos.
+- Added `--subtree-only` to limit aider to current directory subtree.
+  - Should help with large/mono repo performance.
+- New `/add-clipboard-image` to add images to the chat from your clipboard.
+- Use `--map-tokens 1024` to use repo map with any model.
+- Support for Sonnet's 8k output window.
+  - [Aider already supported infinite output from Sonnet.](https://aider.chat/2024/07/01/sonnet-not-lazy.html)
+- Workaround litellm bug for retrying API server errors.
+- Upgraded dependencies, to pick up litellm bug fixes.
+- Aider wrote 44% of the code in this release.
+
+### Aider v0.47.1
+
+- Improvements to conventional commits prompting.
+
+### Aider v0.47.0
+
+- [Commit message](https://aider.chat/docs/git.html#commit-messages) improvements:
+  - Added Conventional Commits guidelines to commit message prompt.
+  - Added `--commit-prompt` to customize the commit message prompt.
+  - Added strong model as a fallback for commit messages (and chat summaries).
+- [Linting](https://aider.chat/docs/usage/lint-test.html) improvements:
+  - Ask before fixing lint errors.
+  - Improved performance of `--lint` on all dirty files in repo.
+  - Improved lint flow, now doing code edit auto-commit before linting.
+  - Bugfix to properly handle subprocess encodings (also for `/run`).
+- Improved [docker support](https://aider.chat/docs/install/docker.html):
+  - Resolved permission issues when using `docker run --user xxx`.
+  - New `paulgauthier/aider-full` docker image, which includes all extras.
+- Switching to code and ask mode no longer summarizes the chat history.
+- Added graph of aider's contribution to each release.
+- Generic auto-completions are provided for `/commands` without a completion override.
+- Fixed broken OCaml tags file.
+- Bugfix in `/run` add to chat approval logic.
+- Aider wrote 58% of the code in this release.
+
+### Aider v0.46.1
+
+- Downgraded stray numpy dependency back to 1.26.4.
+
+### Aider v0.46.0
+
+- New `/ask <question>` command to ask about your code, without making any edits.
+- New `/chat-mode <mode>` command to switch chat modes:
+  - ask: Ask questions about your code without making any changes.
+  - code: Ask for changes to your code (using the best edit format).
+  - help: Get help about using aider (usage, config, troubleshoot).
+- Add `file: CONVENTIONS.md` to `.aider.conf.yml` to always load a specific file.
+  - Or `file: [file1, file2, file3]` to always load multiple files.
+- Enhanced token usage and cost reporting. Now works when streaming too.
+- Filename auto-complete for `/add` and `/drop` is now case-insensitive.
+- Commit message improvements:
+  - Updated commit message prompt to use imperative tense.
+  - Fall back to main model if weak model is unable to generate a commit message.
+- Stop aider from asking to add the same url to the chat multiple times.
+- Updates and fixes to `--no-verify-ssl`:
+  - Fixed regression that broke it in v0.42.0.
+  - Disables SSL certificate verification when `/web` scrapes websites.
+- Improved error handling and reporting in `/web` scraping functionality
+- Fixed syntax error in Elm's tree-sitter scm file (by @cjoach).
+- Handle UnicodeEncodeError when streaming text to the terminal.
+- Updated dependencies to latest versions.
+- Aider wrote 45% of the code in this release.
+
+### Aider v0.45.1
+
+- Use 4o-mini as the weak model wherever 3.5-turbo was used.
+
+### Aider v0.45.0
+
+- GPT-4o mini scores similar to the original GPT 3.5, using whole edit format.
+- Aider is better at offering to add files to the chat on Windows.
+- Bugfix corner cases for `/undo` with new files or new repos.
+- Now shows last 4 characters of API keys in `--verbose` output.
+- Bugfix to precedence of multiple `.env` files.
+- Bugfix to gracefully handle HTTP errors when installing pandoc.
+- Aider wrote 42% of the code in this release.
+
+### Aider v0.44.0
+
+- Default pip install size reduced by 3-12x.
+- Added 3 package extras, which aider will offer to install when needed:
+  - `aider-chat[help]`
+  - `aider-chat[browser]`
+  - `aider-chat[playwright]`
+- Improved regex for detecting URLs in user chat messages.
+- Bugfix to globbing logic when absolute paths are included in `/add`.
+- Simplified output of `--models`.
+- The `--check-update` switch was renamed to `--just-check-updated`.
+- The `--skip-check-update` switch was renamed to `--[no-]check-update`.
+- Aider wrote 29% of the code in this release (157/547 lines).
+
+### Aider v0.43.4
+
+- Added scipy back to main requirements.txt.
+
+### Aider v0.43.3
+
+- Added build-essentials back to main Dockerfile.
+
+### Aider v0.43.2
+
+- Moved HuggingFace embeddings deps into [hf-embed] extra.
+- Added [dev] extra.
+
+### Aider v0.43.1
+
+- Replace the torch requirement with the CPU only version, because the GPU versions are huge.
 
 ### Aider v0.43.0
 

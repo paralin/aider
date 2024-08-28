@@ -22,7 +22,7 @@ def default_env_file(git_root):
 
 def get_parser(default_config_files, git_root):
     parser = configargparse.ArgumentParser(
-        description="aider is GPT powered coding in your terminal",
+        description="aider is AI pair programming in your terminal",
         add_config_file_help=True,
         default_config_files=default_config_files,
         auto_env_var_prefix="AIDER_",
@@ -74,13 +74,21 @@ def get_parser(default_config_files, git_root):
         const=gpt_4_model,
         help=f"Use {gpt_4_model} model for the main chat",
     )
-    gpt_4o_model = "gpt-4o"
+    gpt_4o_model = "gpt-4o-2024-08-06"
     group.add_argument(
         "--4o",
         action="store_const",
         dest="model",
         const=gpt_4o_model,
         help=f"Use {gpt_4o_model} model for the main chat",
+    )
+    gpt_4o_mini_model = "gpt-4o-mini"
+    group.add_argument(
+        "--mini",
+        action="store_const",
+        dest="model",
+        const=gpt_4o_mini_model,
+        help=f"Use {gpt_4o_mini_model} model for the main chat",
     )
     gpt_4_turbo_model = "gpt-4-1106-preview"
     group.add_argument(
@@ -100,6 +108,14 @@ def get_parser(default_config_files, git_root):
         dest="model",
         const=gpt_3_model_name,
         help=f"Use {gpt_3_model_name} model for the main chat",
+    )
+    deepseek_model = "deepseek/deepseek-coder"
+    group.add_argument(
+        "--deepseek",
+        action="store_const",
+        dest="model",
+        const=deepseek_model,
+        help=f"Use {deepseek_model} model for the main chat",
     )
 
     ##########
@@ -159,6 +175,7 @@ def get_parser(default_config_files, git_root):
     )
     group.add_argument(
         "--edit-format",
+        "--chat-mode",
         metavar="EDIT_FORMAT",
         default=None,
         help="Specify what edit format the LLM should use (default depends on model)",
@@ -181,8 +198,32 @@ def get_parser(default_config_files, git_root):
     group.add_argument(
         "--map-tokens",
         type=int,
-        default=1024,
-        help="Max number of tokens to use for repo map, use 0 to disable (default: 1024)",
+        default=None,
+        help="Suggested number of tokens to use for repo map, use 0 to disable (default: 1024)",
+    )
+    group.add_argument(
+        "--map-refresh",
+        choices=["auto", "always", "files", "manual"],
+        default="auto",
+        help="Control how often the repo map is refreshed (default: auto)",
+    )
+    group.add_argument(
+        "--cache-prompts",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Enable caching of prompts (default: False)",
+    )
+    group.add_argument(
+        "--cache-keepalive-pings",
+        type=int,
+        default=0,
+        help="Number of times to ping at 5min intervals to keep prompt cache warm (default: 0)",
+    )
+    group.add_argument(
+        "--map-multiplier-no-files",
+        type=float,
+        default=2,
+        help="Multiplier for map tokens when no files are specified (default: 2)",
     )
     group.add_argument(
         "--max-chat-history-tokens",
@@ -320,6 +361,12 @@ def get_parser(default_config_files, git_root):
         help="Specify the aider ignore file (default: .aiderignore in git root)",
     )
     group.add_argument(
+        "--subtree-only",
+        action="store_true",
+        help="Only consider files in the current subtree of the git repository",
+        default=False,
+    )
+    group.add_argument(
         "--auto-commits",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -344,10 +391,27 @@ def get_parser(default_config_files, git_root):
         help="Attribute aider commits in the git committer name (default: True)",
     )
     group.add_argument(
-        "--attribute-commit-message",
+        "--attribute-commit-message-author",
         action=argparse.BooleanOptionalAction,
         default=False,
-        help="Prefix commit messages with 'aider: ' (default: False)",
+        help="Prefix commit messages with 'aider: ' if aider authored the changes (default: False)",
+    )
+    group.add_argument(
+        "--attribute-commit-message-committer",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Prefix all commit messages with 'aider: ' (default: False)",
+    )
+    group.add_argument(
+        "--commit",
+        action="store_true",
+        help="Commit all pending changes with a suitable commit message, then exit",
+        default=False,
+    )
+    group.add_argument(
+        "--commit-prompt",
+        metavar="PROMPT",
+        help="Specify a custom prompt for generating commit messages",
     )
     group.add_argument(
         "--dry-run",
@@ -356,12 +420,6 @@ def get_parser(default_config_files, git_root):
         help="Perform a dry run without modifying files (default: False)",
     )
     group = parser.add_argument_group("Fixing and committing")
-    group.add_argument(
-        "--commit",
-        action="store_true",
-        help="Commit all pending changes with a suitable commit message, then exit",
-        default=False,
-    )
     group.add_argument(
         "--lint",
         action="store_true",
@@ -404,16 +462,22 @@ def get_parser(default_config_files, git_root):
     ##########
     group = parser.add_argument_group("Other Settings")
     group.add_argument(
+        "--file",
+        action="append",
+        metavar="FILE",
+        help="specify a file to edit (can be used multiple times)",
+    )
+    group.add_argument(
+        "--read",
+        action="append",
+        metavar="FILE",
+        help="specify a read-only file (can be used multiple times)",
+    )
+    group.add_argument(
         "--vim",
         action="store_true",
         help="Use VI editing mode in the terminal (default: False)",
         default=False,
-    )
-    group.add_argument(
-        "--voice-language",
-        metavar="VOICE_LANGUAGE",
-        default="en",
-        help="Specify the language for voice using ISO 639-1 code (default: auto)",
     )
     group.add_argument(
         "--version",
@@ -422,15 +486,28 @@ def get_parser(default_config_files, git_root):
         help="Show the version number and exit",
     )
     group.add_argument(
-        "--check-update",
+        "--just-check-update",
         action="store_true",
         help="Check for updates and return status in the exit code",
         default=False,
     )
     group.add_argument(
-        "--skip-check-update",
+        "--check-update",
+        action=argparse.BooleanOptionalAction,
+        help="Check for new aider versions on launch",
+        default=True,
+    )
+    group.add_argument(
+        "--install-main-branch",
         action="store_true",
-        help="Skips checking for the update when the program runs",
+        help="Install the latest version from the main branch",
+        default=False,
+    )
+    group.add_argument(
+        "--upgrade",
+        action="store_true",
+        help="Upgrade aider to the latest version from PyPI",
+        default=False,
     )
     group.add_argument(
         "--apply",
@@ -507,6 +584,12 @@ def get_parser(default_config_files, git_root):
         action="store_true",
         help="Run aider in your browser",
         default=False,
+    )
+    group.add_argument(
+        "--suggest-shell-commands",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Enable/disable suggesting shell commands (default: True)",
     )
 
     return parser
