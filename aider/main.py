@@ -13,10 +13,12 @@ from aider import __version__, models, utils
 from aider.args import get_parser
 from aider.coders import Coder
 from aider.commands import Commands, SwitchCoder
+from aider.format_settings import format_settings, scrub_sensitive_info
 from aider.history import ChatSummary
 from aider.io import InputOutput
 from aider.llm import litellm  # noqa: F401; properly init litellm on launch
-from aider.repo import GitRepo
+from aider.repo import ANY_GIT_ERROR, GitRepo, UnableToCountRepoFiles
+from aider.report import report_uncaught_exceptions
 from aider.versioncheck import check_version, install_from_main_branch, install_upgrade
 
 from .dump import dump  # noqa: F401
@@ -51,9 +53,15 @@ def guessed_wrong_repo(io, git_root, fnames, git_dname):
 
 
 def make_new_repo(git_root, io):
-    repo = git.Repo.init(git_root)
+    try:
+        repo = git.Repo.init(git_root)
+        check_gitignore(git_root, io, False)
+    except ANY_GIT_ERROR as err:  # issue #1233
+        io.tool_error(f"Unable to create git repo in {git_root}")
+        io.tool_error(str(err))
+        return
+
     io.tool_output(f"Git repository created in {git_root}")
-    check_gitignore(git_root, io, False)
     return repo
 
 
@@ -100,7 +108,7 @@ def check_gitignore(git_root, io, ask=True):
         repo = git.Repo(git_root)
         if repo.ignored(".aider"):
             return
-    except git.exc.InvalidGitRepositoryError:
+    except ANY_GIT_ERROR:
         pass
 
     pat = ".aider*"
@@ -124,34 +132,6 @@ def check_gitignore(git_root, io, ask=True):
     io.write_text(gitignore_file, content)
 
     io.tool_output(f"Added {pat} to .gitignore")
-
-
-def format_settings(parser, args):
-    show = scrub_sensitive_info(args, parser.format_values())
-    # clean up the headings for consistency w/ new lines
-    heading_env = "Environment Variables:"
-    heading_defaults = "Defaults:"
-    if heading_env in show:
-        show = show.replace(heading_env, "\n" + heading_env)
-        show = show.replace(heading_defaults, "\n" + heading_defaults)
-    show += "\n"
-    show += "Option settings:\n"
-    for arg, val in sorted(vars(args).items()):
-        if val:
-            val = scrub_sensitive_info(args, str(val))
-        show += f"  - {arg}: {val}\n"  # noqa: E221
-    return show
-
-
-def scrub_sensitive_info(args, text):
-    # Replace sensitive information with last 4 characters
-    if text and args.openai_api_key:
-        last_4 = args.openai_api_key[-4:]
-        text = text.replace(args.openai_api_key, f"...{last_4}")
-    if text and args.anthropic_api_key:
-        last_4 = args.anthropic_api_key[-4:]
-        text = text.replace(args.anthropic_api_key, f"...{last_4}")
-    return text
 
 
 def check_streamlit_install(io):
@@ -291,8 +271,32 @@ def load_dotenv_files(git_root, dotenv_fname):
             load_dotenv(fname, override=True)
     return loaded
 
+def sanity_check_repo(repo, io):
+    if not repo:
+        return True
+
+    try:
+        repo.get_tracked_files()
+        return True
+    except UnableToCountRepoFiles as exc:
+        error_msg = str(exc)
+
+        if "version in (1, 2)" in error_msg:
+            io.tool_error("Aider only works with git repos with version number 1 or 2.")
+            io.tool_error(
+                "You may be able to convert your repo: git update-index --index-version=2"
+            )
+            io.tool_error("Or run aider --no-git to proceed without using git.")
+            io.tool_error("https://github.com/paul-gauthier/aider/issues/211")
+            return False
+
+        io.tool_error("Unable to read git repository, it may be corrupt?")
+        io.tool_error(error_msg)
+        return False
 
 def main(argv=None, input=None, output=None, force_git_root=None, return_coder=False):
+    report_uncaught_exceptions()
+
     if argv is None:
         argv = sys.argv[1:]
 
@@ -369,6 +373,16 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
         llm_history_file=args.llm_history_file,
         editingmode=editing_mode,
     )
+
+    try:
+        io.tool_output()
+        io.rule()
+    except UnicodeEncodeError as err:
+        if io.pretty:
+            io.pretty = False
+            io.tool_error("Terminal does not support pretty output (UnicodeDecodeError)")
+        else:
+            raise err
 
     if args.gui and not return_coder:
         if not check_streamlit_install(io):
@@ -477,9 +491,6 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
     if lint_cmds is None:
         return 1
 
-    if args.show_model_warnings:
-        models.sanity_check_models(io, main_model)
-
     repo = None
     if args.git:
         try:
@@ -499,7 +510,12 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
         except FileNotFoundError:
             pass
 
-    commands = Commands(io, None, verify_ssl=args.verify_ssl)
+    if not sanity_check_repo(repo, io):
+        return 1
+
+    commands = Commands(
+        io, None, verify_ssl=args.verify_ssl, args=args, parser=parser, verbose=args.verbose
+    )
 
     summarizer = ChatSummary(
         [main_model.weak_model, main_model],
@@ -547,7 +563,6 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
     if return_coder:
         return coder
 
-    io.tool_output()
     coder.show_announcements()
 
     if args.show_prompts:

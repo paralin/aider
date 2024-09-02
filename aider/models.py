@@ -588,7 +588,11 @@ class Model(ModelSettings):
         else:
             msgs = json.dumps(messages)
 
-        return len(self.tokenizer(msgs))
+        try:
+            return len(self.tokenizer(msgs))
+        except Exception as err:
+            print(f"Unable to count tokens: {err}")
+            return 0
 
     def token_count_for_image(self, fname):
         """
@@ -705,9 +709,11 @@ def validate_variables(vars):
 
 
 def sanity_check_models(io, main_model):
-    sanity_check_model(io, main_model)
+    problem_weak = None
+    problem_strong = sanity_check_model(io, main_model)
     if main_model.weak_model and main_model.weak_model is not main_model:
-        sanity_check_model(io, main_model.weak_model)
+        problem_weak = sanity_check_model(io, main_model.weak_model)
+    return problem_strong or problem_weak
 
 
 def sanity_check_model(io, model):
@@ -745,6 +751,8 @@ def sanity_check_model(io, model):
 
     if show:
         io.tool_output(f"For more info, see: {urls.model_warnings}\n")
+
+    return show
 
 
 def fuzzy_match_models(name):

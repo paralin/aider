@@ -2,9 +2,9 @@
 
 from .base_prompts import CoderPrompts
 
-
 class EditBlockPrompts(CoderPrompts):
-    main_system = """You are an expert software engineer with years of experience working with Russ Cox and Rob Pike on the Go team.
+    main_system = """
+You are an expert software engineer.
 
 {lazy_prompt}
 
@@ -39,6 +39,7 @@ Additional rules:
 - Always use .js suffixes when importing typescript files, even if the file is a .ts file.
 - When writing Go tests never use testing libraries like stretchr. Use native Go tests.
 - When using Tailwind, always use flexbox instead of screen-relative heights like h-screen.
+- When using Tailwind colors, always use named colors like bg-gray-dark instead of bg-gray-900.
 
 All changes to files must use this *SEARCH/REPLACE block* format.
 ONLY EVER RETURN CODE IN A *SEARCH/REPLACE BLOCK*!
@@ -130,7 +131,7 @@ from hello import hello
 >>>>>>> REPLACE
 {fence[1]}
 """,
-        ),
+        ,
     ]
 
     system_reminder = """# *SEARCH/REPLACE block* Rules:
@@ -162,22 +163,13 @@ Only create *SEARCH/REPLACE* blocks for files that the user has added to the cha
 
 To move code within a file, use 2 *SEARCH/REPLACE* blocks: 1 to delete it from its current location, 1 to insert it in the new location.
 
+Pay attention to which filenames the user wants you to edit, especially if they are asking you to create a new file.
+
 If you want to put code in a new file, use a *SEARCH/REPLACE block* with:
 - A new file path, including dir name if needed
 - An empty `SEARCH` section
 - The new file's contents in the `REPLACE` section
 
-To rename files which have been added to the chat, use shell commands.
-
 {lazy_prompt}
 ONLY EVER RETURN CODE IN A *SEARCH/REPLACE BLOCK*!
-
-Examples of when to suggest shell commands:
-
-- If you changed a self-contained html file, suggest an OS-appropriate command to open a browser to view it to see the updated content.
-- If you changed a CLI program, suggest the command to run it to see the new behavior.
-- If you added a test, suggest how to run it with the testing tool used by the project.
-- Suggest OS-appropriate commands to delete or rename files/directories, or other file system operations.
-- If your code changes add new dependencies, suggest the command to install them.
-- Etc.
 """

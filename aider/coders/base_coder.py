@@ -18,7 +18,6 @@ from datetime import datetime
 from json.decoder import JSONDecodeError
 from pathlib import Path
 
-import git
 from rich.console import Console, Text
 from rich.markdown import Markdown
 
@@ -29,7 +28,7 @@ from aider.io import ConfirmGroup, InputOutput
 from aider.linter import Linter
 from aider.llm import litellm
 from aider.mdstream import MarkdownStream
-from aider.repo import GitRepo
+from aider.repo import ANY_GIT_ERROR, GitRepo
 from aider.repomap import RepoMap
 from aider.run_cmd import run_cmd
 from aider.sendchat import retry_exceptions, send_completion
@@ -93,6 +92,7 @@ class Coder:
     cache_warming_thread = None
     num_cache_warming_pings = 0
     suggest_shell_commands = True
+    ignore_mentions = None
 
     @classmethod
     def create(
@@ -189,6 +189,7 @@ class Coder:
         if self.repo:
             rel_repo_dir = self.repo.get_rel_repo_dir()
             num_files = len(self.repo.get_tracked_files())
+
             lines.append(f"Git repo: {rel_repo_dir} with {num_files:,} files")
         else:
             lines.append("Git repo: none")
@@ -258,6 +259,7 @@ class Coder:
         self.aider_commit_hashes = set()
         self.rejected_urls = set()
         self.abs_root_path_cache = {}
+        self.ignore_mentions = set()
 
         self.suggest_shell_commands = suggest_shell_commands
 
@@ -342,19 +344,22 @@ class Coder:
 
         for fname in fnames:
             fname = Path(fname)
-            if not fname.exists():
-                self.io.tool_output(f"Creating empty file {fname}")
-                fname.parent.mkdir(parents=True, exist_ok=True)
-                fname.touch()
-
-            if not fname.is_file():
-                raise ValueError(f"{fname} is not a file")
-
-            fname = str(fname.resolve())
-
             if self.repo and self.repo.ignored_file(fname):
                 self.io.tool_error(f"Skipping {fname} that matches aiderignore spec.")
                 continue
+
+            if not fname.exists():
+                if utils.touch_file(fname):
+                    self.io.tool_output(f"Creating empty file {fname}")
+                else:
+                    self.io.tool_error(f"Can not create {fname}, skipping.")
+                    continue
+
+            if not fname.is_file():
+                self.io.tool_error(f"Skipping {fname} that is not a normal file.")
+                continue
+
+            fname = str(fname.resolve())
 
             self.abs_fnames.add(fname)
 
@@ -411,7 +416,7 @@ class Coder:
         self.linter = Linter(root=self.root, encoding=io.encoding)
         self.auto_lint = auto_lint
         self.setup_lint_cmds(lint_cmds)
-
+        self.lint_cmds = lint_cmds
         self.auto_test = auto_test
         self.test_cmd = test_cmd
 
@@ -704,7 +709,7 @@ class Coder:
         self.shell_commands = []
 
         if self.repo:
-            self.commit_before_message.append(self.repo.get_head())
+            self.commit_before_message.append(self.repo.get_head_commit_sha())
 
     def run(self, with_message=None, preproc=True):
         try:
@@ -859,17 +864,11 @@ class Coder:
 
         return None
 
-    def fmt_system_prompt(self, prompt):
-        lazy_prompt = self.gpt_prompts.lazy_prompt if self.main_model.lazy else ""
-
+    def get_platform_info(self):
         platform_text = f"- Platform: {platform.platform()}\n"
-        if os.name == "nt":
-            var = "COMSPEC"
-        else:
-            var = "SHELL"
-
-        val = os.getenv(var)
-        platform_text += f"- Shell: {var}={val}\n"
+        shell_var = "COMSPEC" if os.name == "nt" else "SHELL"
+        shell_val = os.getenv(shell_var)
+        platform_text += f"- Shell: {shell_var}={shell_val}\n"
 
         user_lang = self.get_user_language()
         if user_lang:
@@ -880,6 +879,35 @@ class Coder:
 
         if self.repo:
             platform_text += "- The user is operating inside a git repository\n"
+
+        if self.lint_cmds:
+            if self.auto_lint:
+                platform_text += (
+                    "- The user's pre-commit runs these lint commands, don't suggest running"
+                    " them:\n"
+                )
+            else:
+                platform_text += "- The user prefers these lint commands:\n"
+            for lang, cmd in self.lint_cmds.items():
+                if lang is None:
+                    platform_text += f"  - {cmd}\n"
+                else:
+                    platform_text += f"  - {lang}: {cmd}\n"
+
+        if self.test_cmd:
+            if self.auto_test:
+                platform_text += (
+                    "- The user's pre-commit runs this test command, don't suggest running them: "
+                )
+            else:
+                platform_text += "- The user prefers this test command: "
+            platform_text += self.test_cmd + "\n"
+
+        return platform_text
+
+    def fmt_system_prompt(self, prompt):
+        lazy_prompt = self.gpt_prompts.lazy_prompt if self.main_model.lazy else ""
+        platform_text = self.get_platform_info()
 
         prompt = prompt.format(
             fence=self.fence,
@@ -1032,8 +1060,8 @@ class Coder:
                     completion.usage, "prompt_cache_hit_tokens", 0
                 ) or getattr(completion.usage, "cache_read_input_tokens", 0)
 
-                # if self.verbose:
-                self.io.tool_output(f"Warmed {format_tokens(cache_hit_tokens)} cached tokens.")
+                if self.verbose:
+                    self.io.tool_output(f"Warmed {format_tokens(cache_hit_tokens)} cached tokens.")
 
         self.cache_warming_thread = threading.Timer(0, warm_cache_worker)
         self.cache_warming_thread.daemon = True
@@ -1043,7 +1071,7 @@ class Coder:
 
     def send_message(self, inp):
         self.cur_messages += [
-            dict(role="user", content=inp),
+            dict(role="user", content="<think> "+inp),
         ]
 
         chunks = self.format_messages()
@@ -1197,7 +1225,7 @@ class Coder:
             output_tokens = self.main_model.token_count(self.partial_response_content)
         max_output_tokens = self.main_model.info.get("max_output_tokens") or 0
 
-        input_tokens = self.main_model.token_count(self.format_messages())
+        input_tokens = self.main_model.token_count(self.format_messages().all_messages())
         max_input_tokens = self.main_model.info.get("max_input_tokens") or 0
 
         total_tokens = input_tokens + output_tokens
@@ -1312,17 +1340,22 @@ class Coder:
     def check_for_file_mentions(self, content):
         mentioned_rel_fnames = self.get_file_mentions(content)
 
-        if not mentioned_rel_fnames:
+        new_mentions = mentioned_rel_fnames - self.ignore_mentions
+
+        if not new_mentions:
             return
 
-        add_files = "\n".join(mentioned_rel_fnames) + "\n"
-        if not self.io.confirm_ask("Add these files to the chat?", subject=add_files):
-            return
+        added_fnames = []
+        group = ConfirmGroup(new_mentions)
+        for rel_fname in sorted(new_mentions):
+            if self.io.confirm_ask(f"Add {rel_fname} to the chat?", group=group):
+                self.add_rel_fname(rel_fname)
+                added_fnames.append(rel_fname)
+            else:
+                self.ignore_mentions.add(rel_fname)
 
-        for rel_fname in mentioned_rel_fnames:
-            self.add_rel_fname(rel_fname)
-
-        return prompts.added_files.format(fnames=", ".join(mentioned_rel_fnames))
+        if added_fnames:
+            return prompts.added_files.format(fnames=", ".join(added_fnames))
 
     def send(self, messages, model=None, functions=None):
         if not model:
@@ -1652,8 +1685,9 @@ class Coder:
                 return
 
             if not self.dry_run:
-                Path(full_path).parent.mkdir(parents=True, exist_ok=True)
-                Path(full_path).touch()
+                if not utils.touch_file(full_path):
+                    self.io.tool_error(f"Unable to create {path}, skipping edits.")
+                    return
 
                 # Seems unlikely that we needed to create the file, but it was
                 # actually already part of the repo.
@@ -1726,7 +1760,7 @@ class Coder:
             self.reflected_message = str(err)
             return edited
 
-        except git.exc.GitCommandError as err:
+        except ANY_GIT_ERROR as err:
             self.io.tool_error(str(err))
             return edited
         except Exception as err:
@@ -1813,7 +1847,7 @@ class Coder:
     def show_undo_hint(self):
         if not self.commit_before_message:
             return
-        if self.commit_before_message[-1] != self.repo.get_head():
+        if self.commit_before_message[-1] != self.repo.get_head_commit_sha():
             self.io.tool_output("You can use /undo to undo and discard each aider commit.")
 
     def dirty_commit(self):

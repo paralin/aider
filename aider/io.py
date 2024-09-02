@@ -15,7 +15,6 @@ from prompt_toolkit.shortcuts import CompleteStyle, PromptSession
 from prompt_toolkit.styles import Style
 from pygments.lexers import MarkdownLexer, guess_lexer_for_filename
 from pygments.token import Token
-from pygments.util import ClassNotFound
 from rich.console import Console
 from rich.style import Style as RichStyle
 from rich.text import Text
@@ -83,8 +82,9 @@ class AutoCompleter(Completer):
                 continue
             try:
                 lexer = guess_lexer_for_filename(fname, content)
-            except ClassNotFound:
+            except Exception:  # On Windows, bad ref to time.clock which is deprecated
                 continue
+
             tokens = list(lexer.get_tokens(content))
             self.words.update(
                 (token[1], f"`{token[1]}`") for token in tokens if token[0] in Token.Name
@@ -131,10 +131,14 @@ class AutoCompleter(Completer):
         if not words:
             return
 
+        if text and text[-1].isspace():
+            # don't keep completing after a space
+            return
+
         if text[0] == "/":
             candidates = self.get_command_completions(text, words)
             if candidates is not None:
-                for candidate in candidates:
+                for candidate in sorted(candidates):
                     yield Completion(candidate, start_position=-len(words[-1]))
                 return
 
@@ -143,18 +147,18 @@ class AutoCompleter(Completer):
         candidates = [word if type(word) is tuple else (word, word) for word in candidates]
 
         last_word = words[-1]
+        completions = []
         for word_match, word_insert in candidates:
             if word_match.lower().startswith(last_word.lower()):
+                completions.append((word_insert, -len(last_word), word_match))
+
                 rel_fnames = self.fname_to_rel_fnames.get(word_match, [])
                 if rel_fnames:
                     for rel_fname in rel_fnames:
-                        yield Completion(
-                            rel_fname, start_position=-len(last_word), display=rel_fname
-                        )
-                else:
-                    yield Completion(
-                        word_insert, start_position=-len(last_word), display=word_match
-                    )
+                        completions.append((rel_fname, -len(last_word), rel_fname))
+
+        for ins, pos, match in sorted(completions):
+            yield Completion(ins, start_position=pos, display=match)
 
 
 class InputOutput:
@@ -218,6 +222,9 @@ class InputOutput:
             with open(str(filename), "rb") as image_file:
                 encoded_string = base64.b64encode(image_file.read())
                 return encoded_string.decode("utf-8")
+        except OSError as err:
+            self.tool_error(f"{filename}: unable to read: {err}")
+            return
         except FileNotFoundError:
             self.tool_error(f"{filename}: file not found error")
             return
@@ -235,6 +242,9 @@ class InputOutput:
         try:
             with open(str(filename), "r", encoding=self.encoding) as f:
                 return f.read()
+        except OSError as err:
+            self.tool_error(f"{filename}: unable to read: {err}")
+            return
         except FileNotFoundError:
             self.tool_error(f"{filename}: file not found error")
             return
@@ -252,6 +262,13 @@ class InputOutput:
         with open(str(filename), "w", encoding=self.encoding) as f:
             f.write(content)
 
+    def rule(self):
+        if self.pretty:
+            style = dict(style=self.user_input_color) if self.user_input_color else dict()
+            self.console.rule(**style)
+        else:
+            print()
+
     def get_input(
         self,
         root,
@@ -261,11 +278,7 @@ class InputOutput:
         abs_read_only_fnames=None,
         edit_format=None,
     ):
-        if self.pretty:
-            style = dict(style=self.user_input_color) if self.user_input_color else dict()
-            self.console.rule(**style)
-        else:
-            print()
+        self.rule()
 
         rel_fnames = list(rel_fnames)
         show = ""
@@ -278,7 +291,7 @@ class InputOutput:
         inp = ""
         multiline_input = False
 
-        if self.user_input_color:
+        if self.user_input_color and self.pretty:
             style = Style.from_dict(
                 {
                     "": self.user_input_color,
@@ -370,8 +383,12 @@ class InputOutput:
             log_file.write(content + "\n")
 
     def user_input(self, inp, log_only=True):
-        if not log_only and self.pretty:
-            style = dict(style=self.user_input_color) if self.user_input_color else dict()
+        if not log_only:
+            if self.pretty and self.user_input_color:
+                style = dict(style=self.user_input_color)
+            else:
+                style = dict()
+
             self.console.print(Text(inp), **style)
 
         prefix = "####"
@@ -517,7 +534,10 @@ class InputOutput:
                 self.append_chat_history(hist, linebreak=True, blockquote=True)
 
         message = Text(message)
-        style = dict(style=self.tool_error_color) if self.tool_error_color else dict()
+        if self.pretty and self.tool_error_color:
+            style = dict(style=self.tool_error_color)
+        else:
+            style = dict()
         self.console.print(message, **style)
 
     def tool_output(self, *messages, log_only=False, bold=False):
@@ -526,12 +546,18 @@ class InputOutput:
             hist = f"{hist.strip()}"
             self.append_chat_history(hist, linebreak=True, blockquote=True)
 
-        if not log_only:
-            messages = list(map(Text, messages))
-            style = dict(color=self.tool_output_color) if self.tool_output_color else dict()
+        if log_only:
+            return
+
+        messages = list(map(Text, messages))
+        style = dict()
+        if self.pretty:
+            if self.tool_output_color:
+                style["color"] = self.tool_output_color
             style["reverse"] = bold
-            style = RichStyle(**style)
-            self.console.print(*messages, style=style)
+
+        style = RichStyle(**style)
+        self.console.print(*messages, style=style)
 
     def append_chat_history(self, text, linebreak=False, blockquote=False, strip=True):
         if blockquote:
@@ -545,5 +571,12 @@ class InputOutput:
         if not text.endswith("\n"):
             text += "\n"
         if self.chat_history_file is not None:
-            with self.chat_history_file.open("a", encoding=self.encoding) as f:
-                f.write(text)
+            try:
+                with self.chat_history_file.open("a", encoding=self.encoding) as f:
+                    f.write(text)
+            except (PermissionError, OSError):
+                self.tool_error(
+                    f"Warning: Unable to write to chat history file {self.chat_history_file}."
+                    " Permission denied."
+                )
+                self.chat_history_file = None  # Disable further attempts to write

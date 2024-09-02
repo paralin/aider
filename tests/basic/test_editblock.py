@@ -18,7 +18,7 @@ class TestUtils(unittest.TestCase):
 
     def test_find_filename(self):
         fence = ("```", "```")
-        valid_fnames = ["file1.py", "file2.py", "dir/file3.py", "\windows\__init__.py"]
+        valid_fnames = ["file1.py", "file2.py", "dir/file3.py", r"\windows\__init__.py"]
 
         # Test with filename on a single line
         lines = ["file1.py", "```"]
@@ -45,8 +45,8 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(eb.find_filename(lines, fence, valid_fnames), "file1.py")
 
         # Test with fuzzy matching
-        lines = ["\windows__init__.py", "```"]
-        self.assertEqual(eb.find_filename(lines, fence, valid_fnames), "\windows\__init__.py")
+        lines = [r"\windows__init__.py", "```"]
+        self.assertEqual(eb.find_filename(lines, fence, valid_fnames), r"\windows\__init__.py")
 
     # fuzzy logic disabled v0.11.2-dev
     def __test_replace_most_similar_chunk(self):
@@ -453,6 +453,43 @@ Hope you like it!
             edits,
             [
                 ("foo.txt", "one\n", "two\n"),
+            ],
+        )
+
+    def test_new_file_created_in_same_folder(self):
+        edit = """
+Here's the change:
+
+path/to/a/file2.txt
+```python
+<<<<<<< SEARCH
+=======
+three
+>>>>>>> REPLACE
+```
+
+another change
+
+path/to/a/file1.txt
+```python
+<<<<<<< SEARCH
+one
+=======
+two
+>>>>>>> REPLACE
+```
+
+Hope you like it!
+"""
+
+        edits = list(
+            eb.find_original_update_blocks(edit, valid_fnames=["path/to/a/file1.txt"])
+        )
+        self.assertEqual(
+            edits,
+            [
+                ("path/to/a/file2.txt", "", "three\n"),
+                ("path/to/a/file1.txt", "one\n", "two\n"),
             ],
         )
 
