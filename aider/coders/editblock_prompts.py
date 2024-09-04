@@ -2,9 +2,12 @@
 
 from .base_prompts import CoderPrompts
 
+
 class EditBlockPrompts(CoderPrompts):
     main_system = """
-You are an expert software engineer.
+Act as an expert software engineer.
+Always use best practices when coding.
+Respect and use existing conventions, libraries, etc that are already present in the code base.
 
 {lazy_prompt}
 
@@ -131,7 +134,7 @@ from hello import hello
 >>>>>>> REPLACE
 {fence[1]}
 """,
-        ,
+        ),
     ]
 
     system_reminder = """# *SEARCH/REPLACE block* Rules:

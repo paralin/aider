@@ -176,6 +176,7 @@ class InputOutput:
         user_input_color="blue",
         tool_output_color=None,
         tool_error_color="red",
+        tool_warning_color="#FFA500",
         encoding="utf-8",
         dry_run=False,
         llm_history_file=None,
@@ -189,6 +190,7 @@ class InputOutput:
         self.user_input_color = user_input_color if pretty else None
         self.tool_output_color = tool_output_color if pretty else None
         self.tool_error_color = tool_error_color if pretty else None
+        self.tool_warning_color = tool_warning_color if pretty else None
 
         self.input = input
         self.output = output
@@ -259,8 +261,11 @@ class InputOutput:
     def write_text(self, filename, content):
         if self.dry_run:
             return
-        with open(str(filename), "w", encoding=self.encoding) as f:
-            f.write(content)
+        try:
+            with open(str(filename), "w", encoding=self.encoding) as f:
+                f.write(content)
+        except OSError as err:
+            self.tool_error(f"Unable to write file {filename}: {err}")
 
     def rule(self):
         if self.pretty:
@@ -519,26 +524,25 @@ class InputOutput:
 
         return res
 
-    def tool_error(self, message="", strip=True):
-        self.num_error_outputs += 1
-
+    def _tool_message(self, message="", strip=True, color=None):
         if message.strip():
             if "\n" in message:
                 for line in message.splitlines():
                     self.append_chat_history(line, linebreak=True, blockquote=True, strip=strip)
             else:
-                if strip:
-                    hist = message.strip()
-                else:
-                    hist = message
+                hist = message.strip() if strip else message
                 self.append_chat_history(hist, linebreak=True, blockquote=True)
 
         message = Text(message)
-        if self.pretty and self.tool_error_color:
-            style = dict(style=self.tool_error_color)
-        else:
-            style = dict()
+        style = dict(style=color) if self.pretty and color else dict()
         self.console.print(message, **style)
+
+    def tool_error(self, message="", strip=True):
+        self.num_error_outputs += 1
+        self._tool_message(message, strip, self.tool_error_color)
+
+    def tool_warning(self, message="", strip=True):
+        self._tool_message(message, strip, self.tool_warning_color)
 
     def tool_output(self, *messages, log_only=False, bold=False):
         if messages:

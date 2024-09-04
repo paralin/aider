@@ -315,7 +315,12 @@ def get_parser(default_config_files, git_root):
     group.add_argument(
         "--tool-error-color",
         default="#FF2222",
-        help="Set the color for tool error messages (default: red)",
+        help="Set the color for tool error messages (default: #FF2222)",
+    )
+    group.add_argument(
+        "--tool-warning-color",
+        default="#FFA500",
+        help="Set the color for tool warning messages (default: #FFA500)",
     )
     group.add_argument(
         "--assistant-output-color",

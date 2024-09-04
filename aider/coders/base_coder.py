@@ -345,18 +345,18 @@ class Coder:
         for fname in fnames:
             fname = Path(fname)
             if self.repo and self.repo.ignored_file(fname):
-                self.io.tool_error(f"Skipping {fname} that matches aiderignore spec.")
+                self.io.tool_warning(f"Skipping {fname} that matches aiderignore spec.")
                 continue
 
             if not fname.exists():
                 if utils.touch_file(fname):
                     self.io.tool_output(f"Creating empty file {fname}")
                 else:
-                    self.io.tool_error(f"Can not create {fname}, skipping.")
+                    self.io.tool_warning(f"Can not create {fname}, skipping.")
                     continue
 
             if not fname.is_file():
-                self.io.tool_error(f"Skipping {fname} that is not a normal file.")
+                self.io.tool_warning(f"Skipping {fname} that is not a normal file.")
                 continue
 
             fname = str(fname.resolve())
@@ -373,7 +373,7 @@ class Coder:
                 if os.path.exists(abs_fname):
                     self.abs_read_only_fnames.add(abs_fname)
                 else:
-                    self.io.tool_error(f"Error: Read-only file {fname} does not exist. Skipping.")
+                    self.io.tool_warning(f"Error: Read-only file {fname} does not exist. Skipping.")
 
         if map_tokens is None:
             use_repo_map = main_model.use_repo_map
@@ -481,7 +481,7 @@ class Coder:
 
             if content is None:
                 relative_fname = self.get_rel_fname(fname)
-                self.io.tool_error(f"Dropping {relative_fname} from the chat.")
+                self.io.tool_warning(f"Dropping {relative_fname} from the chat.")
                 self.abs_fnames.remove(fname)
             else:
                 yield fname, content
@@ -506,7 +506,7 @@ class Coder:
             self.fence = (fence_open, fence_close)
         else:
             self.fence = self.fences[0]
-            self.io.tool_error(
+            self.io.tool_warning(
                 "Unable to find a fencing strategy! Falling back to:"
                 f" {self.fence[0]}...{self.fence[1]}"
             )
@@ -770,7 +770,7 @@ class Coder:
                 break
 
             if self.num_reflections >= self.max_reflections:
-                self.io.tool_error(f"Only {self.max_reflections} reflections allowed, stopping.")
+                self.io.tool_warning(f"Only {self.max_reflections} reflections allowed, stopping.")
                 return
 
             self.num_reflections += 1
@@ -797,10 +797,10 @@ class Coder:
 
         thresh = 2  # seconds
         if self.last_keyboard_interrupt and now - self.last_keyboard_interrupt < thresh:
-            self.io.tool_error("\n\n^C KeyboardInterrupt")
+            self.io.tool_warning("\n\n^C KeyboardInterrupt")
             sys.exit()
 
-        self.io.tool_error("\n\n^C again to exit")
+        self.io.tool_warning("\n\n^C again to exit")
 
         self.last_keyboard_interrupt = now
 
@@ -820,7 +820,7 @@ class Coder:
         try:
             self.summarized_done_messages = self.summarizer.summarize(self.done_messages)
         except ValueError as err:
-            self.io.tool_error(err.args[0])
+            self.io.tool_warning(err.args[0])
 
         if self.verbose:
             self.io.tool_output("Finished summarizing chat history.")
@@ -1053,7 +1053,7 @@ class Coder:
                         extra_headers=self.main_model.extra_headers,
                     )
                 except Exception as err:
-                    self.io.tool_error(f"Cache warming error: {str(err)}")
+                    self.io.tool_warning(f"Cache warming error: {str(err)}")
                     continue
 
                 cache_hit_tokens = getattr(
@@ -1099,7 +1099,7 @@ class Coder:
                     yield from self.send(messages, functions=self.functions)
                     break
                 except retry_exceptions() as err:
-                    self.io.tool_error(str(err))
+                    self.io.tool_warning(str(err))
                     retry_delay *= 2
                     if retry_delay > 60:
                         break
@@ -1287,7 +1287,7 @@ class Coder:
                 res += "\n"
 
         if res:
-            self.io.tool_error(res)
+            self.io.tool_warning(res)
 
         return res
 
@@ -1681,7 +1681,7 @@ class Coder:
 
         if not Path(full_path).exists():
             if not self.io.confirm_ask("Create new file?", subject=path):
-                self.io.tool_error(f"Skipping edits to {path}")
+                self.io.tool_output(f"Skipping edits to {path}")
                 return
 
             if not self.dry_run:
@@ -1702,7 +1702,7 @@ class Coder:
             "Allow edits to file that has not been added to the chat?",
             subject=path,
         ):
-            self.io.tool_error(f"Skipping edits to {path}")
+            self.io.tool_output(f"Skipping edits to {path}")
             return
 
         if need_to_add:
@@ -1753,9 +1753,9 @@ class Coder:
             err = err.args[0]
 
             self.io.tool_error("The LLM did not conform to the edit format.")
-            self.io.tool_error(urls.edit_errors)
-            self.io.tool_error()
-            self.io.tool_error(str(err), strip=False)
+            self.io.tool_output(urls.edit_errors)
+            self.io.tool_output()
+            self.io.tool_output(str(err), strip=False)
 
             self.reflected_message = str(err)
             return edited

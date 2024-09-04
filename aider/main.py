@@ -17,7 +17,7 @@ from aider.format_settings import format_settings, scrub_sensitive_info
 from aider.history import ChatSummary
 from aider.io import InputOutput
 from aider.llm import litellm  # noqa: F401; properly init litellm on launch
-from aider.repo import ANY_GIT_ERROR, GitRepo, UnableToCountRepoFiles
+from aider.repo import ANY_GIT_ERROR, GitRepo
 from aider.report import report_uncaught_exceptions
 from aider.versioncheck import check_version, install_from_main_branch, install_upgrade
 
@@ -58,7 +58,7 @@ def make_new_repo(git_root, io):
         check_gitignore(git_root, io, False)
     except ANY_GIT_ERROR as err:  # issue #1233
         io.tool_error(f"Unable to create git repo in {git_root}")
-        io.tool_error(str(err))
+        io.tool_output(str(err))
         return
 
     io.tool_output(f"Git repository created in {git_root}")
@@ -92,10 +92,10 @@ def setup_git(git_root, io):
     with repo.config_writer() as git_config:
         if not user_name:
             git_config.set_value("user", "name", "Your Name")
-            io.tool_error('Update git name with: git config user.name "Your Name"')
+            io.tool_warning('Update git name with: git config user.name "Your Name"')
         if not user_email:
             git_config.set_value("user", "email", "you@example.com")
-            io.tool_error('Update git email with: git config user.email "you@example.com"')
+            io.tool_warning('Update git email with: git config user.email "you@example.com"')
 
     return repo.working_tree_dir
 
@@ -201,8 +201,8 @@ def parse_lint_cmds(lint_cmds, io):
             res[lang] = cmd
         else:
             io.tool_error(f'Unable to parse --lint-cmd "{lint_cmd}"')
-            io.tool_error('The arg should be "language: cmd --args ..."')
-            io.tool_error('For example: --lint-cmd "python: flake8 --select=E9"')
+            io.tool_output('The arg should be "language: cmd --args ..."')
+            io.tool_output('For example: --lint-cmd "python: flake8 --select=E9"')
             err = True
     if err:
         return
@@ -278,20 +278,20 @@ def sanity_check_repo(repo, io):
     try:
         repo.get_tracked_files()
         return True
-    except UnableToCountRepoFiles as exc:
+    except ANY_GIT_ERROR as exc:
         error_msg = str(exc)
 
         if "version in (1, 2)" in error_msg:
             io.tool_error("Aider only works with git repos with version number 1 or 2.")
-            io.tool_error(
+            io.tool_output(
                 "You may be able to convert your repo: git update-index --index-version=2"
             )
-            io.tool_error("Or run aider --no-git to proceed without using git.")
-            io.tool_error("https://github.com/paul-gauthier/aider/issues/211")
+            io.tool_output("Or run aider --no-git to proceed without using git.")
+            io.tool_output("https://github.com/paul-gauthier/aider/issues/211")
             return False
 
         io.tool_error("Unable to read git repository, it may be corrupt?")
-        io.tool_error(error_msg)
+        io.tool_output(error_msg)
         return False
 
 def main(argv=None, input=None, output=None, force_git_root=None, return_coder=False):
@@ -344,12 +344,14 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
     if args.dark_mode:
         args.user_input_color = "#32FF32"
         args.tool_error_color = "#FF3333"
+        args.tool_warning_color = "#FFFF00"
         args.assistant_output_color = "#00FFFF"
         args.code_theme = "monokai"
 
     if args.light_mode:
         args.user_input_color = "green"
         args.tool_error_color = "red"
+        args.tool_warning_color = "#FFA500"
         args.assistant_output_color = "blue"
         args.code_theme = "default"
 
@@ -380,7 +382,7 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
     except UnicodeEncodeError as err:
         if io.pretty:
             io.pretty = False
-            io.tool_error("Terminal does not support pretty output (UnicodeDecodeError)")
+            io.tool_warning("Terminal does not support pretty output (UnicodeDecodeError)")
         else:
             raise err
 
@@ -404,7 +406,7 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
                 io.tool_error(f"{fname} is a directory, not provided alone.")
                 good = False
         if not good:
-            io.tool_error(
+            io.tool_output(
                 "Provide either a single directory of a git repo, or a list of one or more files."
             )
             return 1

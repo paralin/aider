@@ -168,7 +168,7 @@ class RepoMap:
         try:
             self.TAGS_CACHE = Cache(path)
         except sqlite3.OperationalError:
-            self.io.tool_error(f"Unable to use tags cache, delete {path} to resolve.")
+            self.io.tool_warning(f"Unable to use tags cache, delete {path} to resolve.")
             self.TAGS_CACHE = dict()
 
     def save_tags_cache(self):
@@ -178,7 +178,7 @@ class RepoMap:
         try:
             return os.path.getmtime(fname)
         except FileNotFoundError:
-            self.io.tool_error(f"File not found error: {fname}")
+            self.io.tool_warning(f"File not found error: {fname}")
 
     def get_tags(self, fname, rel_fname):
         # Check if the file is in the cache and if the modification time has not changed
@@ -187,7 +187,8 @@ class RepoMap:
             return []
 
         cache_key = fname
-        if cache_key in self.TAGS_CACHE and self.TAGS_CACHE[cache_key]["mtime"] == file_mtime:
+        val = self.TAGS_CACHE.get(cache_key)  # Issue #1308
+        if val is not None and val.get("mtime") == file_mtime:
             return self.TAGS_CACHE[cache_key]["data"]
 
         # miss!
@@ -307,16 +308,15 @@ class RepoMap:
             if progress and not showing_bar:
                 progress()
 
-            if not Path(fname).is_file():
-                if fname not in self.warned_files:
-                    if Path(fname).exists():
-                        self.io.tool_error(
-                            f"Repo-map can't include {fname}, it is not a normal file"
-                        )
-                    else:
-                        self.io.tool_error(f"Repo-map can't include {fname}, it no longer exists")
+            try:
+                file_ok = Path(fname).is_file()
+            except OSError:
+                file_ok = False
 
-                self.warned_files.add(fname)
+            if not file_ok:
+                if fname not in self.warned_files:
+                    self.io.tool_warning(f"Repo-map can't include {fname}")
+                    self.warned_files.add(fname)
                 continue
 
             # dump(fname)
@@ -447,6 +447,7 @@ class RepoMap:
             max_map_tokens,
         )
 
+        use_cache = False
         if not force_refresh:
             if self.refresh == "manual" and self.last_map:
                 return self.last_map
@@ -505,6 +506,8 @@ class RepoMap:
 
         other_rel_fnames = sorted(set(self.get_rel_fname(fname) for fname in other_fnames))
         special_fnames = filter_important_files(other_rel_fnames)
+        ranked_tags_fnames = set(tag[0] for tag in ranked_tags)
+        special_fnames = [fn for fn in special_fnames if fn not in ranked_tags_fnames]
         special_fnames = [(fn,) for fn in special_fnames]
 
         ranked_tags = special_fnames + ranked_tags
