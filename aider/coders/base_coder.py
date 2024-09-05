@@ -175,7 +175,7 @@ class Coder:
             prefix = "Model"
 
         output = f"{prefix}: {main_model.name} with {self.edit_format} edit format"
-        if self.add_cache_headers or main_model.caches_by_default:
+        if self.add_cache_headers:
             output += ", prompt cache"
         if main_model.info.get("supports_assistant_prefill"):
             output += ", infinite output"
@@ -908,11 +908,13 @@ class Coder:
     def fmt_system_prompt(self, prompt):
         lazy_prompt = self.gpt_prompts.lazy_prompt if self.main_model.lazy else ""
         platform_text = self.get_platform_info()
+        super_prompt = self.gpt_prompts.super_prompt
 
         prompt = prompt.format(
             fence=self.fence,
             lazy_prompt=lazy_prompt,
             platform=platform_text,
+            super_prompt=super_prompt,
         )
         return prompt
 
@@ -921,36 +923,38 @@ class Coder:
         main_sys = self.fmt_system_prompt(self.gpt_prompts.main_system)
 
         example_messages = []
-        if self.main_model.examples_as_sys_msg:
-            if self.gpt_prompts.example_messages:
-                main_sys += "\n# Example conversations:\n\n"
-            for msg in self.gpt_prompts.example_messages:
-                role = msg["role"]
-                content = self.fmt_system_prompt(msg["content"])
-                main_sys += f"## {role.upper()}: {content}\n\n"
-            main_sys = main_sys.strip()
-        else:
-            for msg in self.gpt_prompts.example_messages:
-                example_messages.append(
-                    dict(
-                        role=msg["role"],
-                        content=self.fmt_system_prompt(msg["content"]),
-                    )
+        for msg in self.gpt_prompts.example_messages:
+            example_messages.append(
+                dict(
+                    role=msg["role"],
+                    content=self.fmt_system_prompt(msg["content"]),
                 )
-            if self.gpt_prompts.example_messages:
-                example_messages += [
-                    dict(
-                        role="user",
-                        content=(
-                            "I switched to a new code base. Please don't consider the above files"
-                            " or try to edit them any longer."
-                        ),
-                    ),
-                    dict(role="assistant", content="Ok."),
-                ]
+            )
 
-        if self.gpt_prompts.system_reminder:
-            main_sys += "\n" + self.fmt_system_prompt(self.gpt_prompts.system_reminder)
+        full_reminder = self.gpt_prompts.system_reminder
+        if self.gpt_prompts.super_prompt:
+            full_reminder = self.gpt_prompts.super_prompt + "\n" + full_reminder
+
+        if self.gpt_prompts.example_messages:
+            example_messages += [
+                dict(
+                    role="user",
+                    content=(
+                        full_reminder + "\n\nI switched to a new codebase. Please don't consider the above files or try to edit them anymore, but keep using the <rules> and <edit_rules>."
+                    ),
+                ),
+                dict(role="assistant", content="Ok, moving on to the next codebase, respecting the <rules> and <edit_rules>.\n\nN"),
+            ]
+        else:
+            example_messages += [
+                dict(
+                    role="user",
+                    content=(
+                        full_reminder,
+                    ),
+                ),
+                dict(role="assistant", content="Ok, I will respect the <rules> and <edit_rules> from now on.\n\nN"),
+            ]
 
         chunks = ChatChunks()
 
@@ -966,48 +970,8 @@ class Coder:
         chunks.readonly_files = self.get_readonly_files_messages()
         chunks.chat_files = self.get_chat_files_messages()
 
-        if self.gpt_prompts.system_reminder:
-            reminder_message = [
-                dict(
-                    role="system", content=self.fmt_system_prompt(self.gpt_prompts.system_reminder)
-                ),
-            ]
-        else:
-            reminder_message = []
-
         chunks.cur = list(self.cur_messages)
         chunks.reminder = []
-
-        # TODO review impact of token count on image messages
-        messages_tokens = self.main_model.token_count(chunks.all_messages())
-        reminder_tokens = self.main_model.token_count(reminder_message)
-        cur_tokens = self.main_model.token_count(chunks.cur)
-
-        if None not in (messages_tokens, reminder_tokens, cur_tokens):
-            total_tokens = messages_tokens + reminder_tokens + cur_tokens
-        else:
-            # add the reminder anyway
-            total_tokens = 0
-
-        final = chunks.cur[-1]
-
-        max_input_tokens = self.main_model.info.get("max_input_tokens") or 0
-        # Add the reminder prompt if we still have room to include it.
-        if (
-            max_input_tokens is None
-            or total_tokens < max_input_tokens
-            and self.gpt_prompts.system_reminder
-        ):
-            if self.main_model.reminder == "sys":
-                chunks.reminder = reminder_message
-            elif self.main_model.reminder == "user" and final["role"] == "user":
-                # stuff it into the user message
-                new_content = (
-                    final["content"]
-                    + "\n\n"
-                    + self.fmt_system_prompt(self.gpt_prompts.system_reminder)
-                )
-                chunks.cur[-1] = dict(role=final["role"], content=new_content)
 
         return chunks
 
@@ -1071,7 +1035,7 @@ class Coder:
 
     def send_message(self, inp):
         self.cur_messages += [
-            dict(role="user", content="<think> "+inp),
+            dict(role="user", content=inp),
         ]
 
         chunks = self.format_messages()
@@ -1553,10 +1517,6 @@ class Coder:
             self.main_model.info.get("input_cost_per_token_cache_hit") or 0
         )
 
-        # deepseek
-        # prompt_cache_hit_tokens + prompt_cache_miss_tokens
-        #    == prompt_tokens == total tokens that were sent
-        #
         # Anthropic
         # cache_creation_input_tokens + cache_read_input_tokens + prompt
         #    == total tokens that were
@@ -1755,7 +1715,7 @@ class Coder:
             self.io.tool_error("The LLM did not conform to the edit format.")
             self.io.tool_output(urls.edit_errors)
             self.io.tool_output()
-            self.io.tool_output(str(err), strip=False)
+            self.io.tool_output(str(err))
 
             self.reflected_message = str(err)
             return edited
@@ -1765,7 +1725,7 @@ class Coder:
             return edited
         except Exception as err:
             self.io.tool_error("Exception while updating files:")
-            self.io.tool_error(str(err), strip=False)
+            self.io.tool_error(str(err))
 
             traceback.print_exc()
 

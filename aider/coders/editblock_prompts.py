@@ -45,6 +45,7 @@ Additional rules:
 - When using Tailwind colors, always use named colors like bg-gray-dark instead of bg-gray-900.
 
 All changes to files must use this *SEARCH/REPLACE block* format.
+Note that the SEARCH/REPLACE block will be applied just once and to the first match only.
 ONLY EVER RETURN CODE IN A *SEARCH/REPLACE BLOCK*!
 """
 
@@ -137,7 +138,9 @@ from hello import hello
         ),
     ]
 
-    system_reminder = """# *SEARCH/REPLACE block* Rules:
+    system_reminder = """
+<edit_rules>
+    # *SEARCH/REPLACE block* Rules:
 
 Every *SEARCH/REPLACE block* must use this format:
 1. The *FULL* file path alone on a line, verbatim. No bold asterisks, no quotes around it, no escaping of characters, etc.
@@ -172,7 +175,9 @@ If you want to put code in a new file, use a *SEARCH/REPLACE block* with:
 - A new file path, including dir name if needed
 - An empty `SEARCH` section
 - The new file's contents in the `REPLACE` section
+</edit_rules>
 
-{lazy_prompt}
 ONLY EVER RETURN CODE IN A *SEARCH/REPLACE BLOCK*!
+ALWAYS USE THE CLAUDE THOUGHTS AND MATHEMATICAL PROCEDURAL THINKING OPERATORS FIRST BEFORE PROVIDING EDIT BLOCKS!
+REMEMBER TO FOLLOW YOUR ENTIRE RESPONSE WITH Y/N ACCORDING TO THE RULES MENTIONED EARLIER!
 """

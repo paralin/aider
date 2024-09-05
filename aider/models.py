@@ -13,7 +13,6 @@ import yaml
 from PIL import Image
 
 from aider import urls
-from aider.dump import dump  # noqa: F401
 from aider.llm import litellm
 
 DEFAULT_MODEL_NAME = "gpt-4o"
@@ -71,11 +70,9 @@ class ModelSettings:
     accepts_images: bool = False
     lazy: bool = False
     reminder: str = "user"
-    examples_as_sys_msg: bool = False
     extra_headers: Optional[dict] = None
     max_tokens: Optional[int] = None
     cache_control: bool = False
-    caches_by_default: bool = False
 
 
 # https://platform.openai.com/docs/models/gpt-4-and-gpt-4-turbo
@@ -83,76 +80,8 @@ class ModelSettings:
 # https://openai.com/pricing
 
 MODEL_SETTINGS = [
-    # gpt-3.5
-    ModelSettings(
-        "gpt-3.5-turbo",
-        "whole",
-        weak_model_name="gpt-4o-mini",
-        reminder="sys",
-    ),
-    ModelSettings(
-        "gpt-3.5-turbo-0125",
-        "whole",
-        weak_model_name="gpt-4o-mini",
-        reminder="sys",
-    ),
-    ModelSettings(
-        "gpt-3.5-turbo-1106",
-        "whole",
-        weak_model_name="gpt-4o-mini",
-        reminder="sys",
-    ),
-    ModelSettings(
-        "gpt-3.5-turbo-0613",
-        "whole",
-        weak_model_name="gpt-4o-mini",
-        reminder="sys",
-    ),
-    ModelSettings(
-        "gpt-3.5-turbo-16k-0613",
-        "whole",
-        weak_model_name="gpt-4o-mini",
-        reminder="sys",
-    ),
-    # gpt-4
-    ModelSettings(
-        "gpt-4-turbo-2024-04-09",
-        "udiff",
-        weak_model_name="gpt-4o-mini",
-        use_repo_map=True,
-        accepts_images=True,
-        lazy=True,
-        reminder="sys",
-    ),
-    ModelSettings(
-        "gpt-4-turbo",
-        "udiff",
-        weak_model_name="gpt-4o-mini",
-        use_repo_map=True,
-        accepts_images=True,
-        lazy=True,
-        reminder="sys",
-    ),
     ModelSettings(
         "openai/gpt-4o",
-        "diff",
-        weak_model_name="gpt-4o-mini",
-        use_repo_map=True,
-        accepts_images=True,
-        lazy=True,
-        reminder="sys",
-    ),
-    ModelSettings(
-        "openai/gpt-4o-2024-08-06",
-        "diff",
-        weak_model_name="gpt-4o-mini",
-        use_repo_map=True,
-        accepts_images=True,
-        lazy=True,
-        reminder="sys",
-    ),
-    ModelSettings(
-        "gpt-4o-2024-08-06",
         "diff",
         weak_model_name="gpt-4o-mini",
         use_repo_map=True,
@@ -170,39 +99,6 @@ MODEL_SETTINGS = [
         reminder="sys",
     ),
     ModelSettings(
-        "gpt-4o-mini",
-        "whole",
-        weak_model_name="gpt-4o-mini",
-        accepts_images=True,
-        lazy=True,
-        reminder="sys",
-    ),
-    ModelSettings(
-        "openai/gpt-4o-mini",
-        "whole",
-        weak_model_name="openai/gpt-4o-mini",
-        accepts_images=True,
-        lazy=True,
-        reminder="sys",
-    ),
-    ModelSettings(
-        "gpt-4-0125-preview",
-        "udiff",
-        weak_model_name="gpt-4o-mini",
-        use_repo_map=True,
-        lazy=True,
-        reminder="sys",
-        examples_as_sys_msg=True,
-    ),
-    ModelSettings(
-        "gpt-4-1106-preview",
-        "udiff",
-        weak_model_name="gpt-4o-mini",
-        use_repo_map=True,
-        lazy=True,
-        reminder="sys",
-    ),
-    ModelSettings(
         "gpt-4-vision-preview",
         "diff",
         weak_model_name="gpt-4o-mini",
@@ -211,28 +107,12 @@ MODEL_SETTINGS = [
         reminder="sys",
     ),
     ModelSettings(
-        "gpt-4-0314",
-        "diff",
-        weak_model_name="gpt-4o-mini",
-        use_repo_map=True,
-        reminder="sys",
-        examples_as_sys_msg=True,
-    ),
-    ModelSettings(
-        "gpt-4-0613",
+        "gpt-4-1106-preview",
         "diff",
         weak_model_name="gpt-4o-mini",
         use_repo_map=True,
         reminder="sys",
     ),
-    ModelSettings(
-        "gpt-4-32k-0613",
-        "diff",
-        weak_model_name="gpt-4o-mini",
-        use_repo_map=True,
-        reminder="sys",
-    ),
-    # Claude
     ModelSettings(
         "claude-3-opus-20240229",
         "diff",
@@ -246,16 +126,10 @@ MODEL_SETTINGS = [
         use_repo_map=True,
     ),
     ModelSettings(
-        "claude-3-sonnet-20240229",
-        "whole",
-        weak_model_name="claude-3-haiku-20240307",
-    ),
-    ModelSettings(
         "claude-3-5-sonnet-20240620",
         "diff",
         weak_model_name="claude-3-haiku-20240307",
         use_repo_map=True,
-        examples_as_sys_msg=True,
         accepts_images=True,
         max_tokens=8192,
         extra_headers={
@@ -265,44 +139,10 @@ MODEL_SETTINGS = [
         reminder="user",
     ),
     ModelSettings(
-        "anthropic/claude-3-5-sonnet-20240620",
-        "diff",
-        weak_model_name="claude-3-haiku-20240307",
-        use_repo_map=True,
-        examples_as_sys_msg=True,
-        max_tokens=8192,
-        extra_headers={
-            "anthropic-beta": ANTHROPIC_BETA_HEADER,
-        },
-        cache_control=True,
-        reminder="user",
-    ),
-    ModelSettings(
-        "anthropic/claude-3-haiku-20240307",
-        "whole",
-        weak_model_name="anthropic/claude-3-haiku-20240307",
-        examples_as_sys_msg=True,
-        extra_headers={
-            "anthropic-beta": ANTHROPIC_BETA_HEADER,
-        },
-        cache_control=True,
-    ),
-    ModelSettings(
-        "claude-3-haiku-20240307",
-        "whole",
-        weak_model_name="claude-3-haiku-20240307",
-        examples_as_sys_msg=True,
-        extra_headers={
-            "anthropic-beta": ANTHROPIC_BETA_HEADER,
-        },
-        cache_control=True,
-    ),
-    ModelSettings(
         "openrouter/anthropic/claude-3.5-sonnet",
         "diff",
         weak_model_name="openrouter/anthropic/claude-3-haiku-20240307",
         use_repo_map=True,
-        examples_as_sys_msg=True,
         accepts_images=True,
         max_tokens=8192,
         extra_headers={
@@ -310,14 +150,11 @@ MODEL_SETTINGS = [
         },
         reminder="user",
     ),
-    # Vertex AI Claude models
-    # Does not yet support 8k token
     ModelSettings(
         "vertex_ai/claude-3-5-sonnet@20240620",
         "diff",
         weak_model_name="vertex_ai/claude-3-haiku@20240307",
         use_repo_map=True,
-        examples_as_sys_msg=True,
         accepts_images=True,
         reminder="user",
     ),
@@ -328,78 +165,23 @@ MODEL_SETTINGS = [
         use_repo_map=True,
     ),
     ModelSettings(
-        "vertex_ai/claude-3-sonnet@20240229",
-        "whole",
-        weak_model_name="vertex_ai/claude-3-haiku@20240307",
-    ),
-    # Cohere
-    ModelSettings(
-        "command-r-plus",
-        "whole",
-        weak_model_name="command-r-plus",
-        use_repo_map=True,
-    ),
-    # Groq llama3
-    ModelSettings(
         "groq/llama3-70b-8192",
         "diff",
         weak_model_name="groq/llama3-8b-8192",
         use_repo_map=False,
         send_undo_reply=False,
-        examples_as_sys_msg=True,
     ),
-    # Openrouter llama3
     ModelSettings(
         "openrouter/meta-llama/llama-3-70b-instruct",
         "diff",
         weak_model_name="openrouter/meta-llama/llama-3-70b-instruct",
         use_repo_map=False,
         send_undo_reply=False,
-        examples_as_sys_msg=True,
     ),
-    # Gemini
     ModelSettings(
         "gemini/gemini-1.5-pro",
         "diff-fenced",
         use_repo_map=True,
-    ),
-    ModelSettings(
-        "gemini/gemini-1.5-pro-latest",
-        "diff-fenced",
-        use_repo_map=True,
-    ),
-    ModelSettings(
-        "gemini/gemini-1.5-pro-exp-0827",
-        "diff-fenced",
-        use_repo_map=True,
-    ),
-    ModelSettings(
-        "gemini/gemini-1.5-flash-exp-0827",
-        "whole",
-        use_repo_map=False,
-        send_undo_reply=False,
-    ),
-    ModelSettings(
-        "deepseek/deepseek-chat",
-        "diff",
-        use_repo_map=True,
-        examples_as_sys_msg=True,
-        reminder="sys",
-    ),
-    ModelSettings(
-        "deepseek/deepseek-coder",
-        "diff",
-        use_repo_map=True,
-        examples_as_sys_msg=True,
-        reminder="sys",
-        caches_by_default=True,
-    ),
-    ModelSettings(
-        "openrouter/deepseek/deepseek-coder",
-        "diff",
-        use_repo_map=True,
-        examples_as_sys_msg=True,
-        reminder="sys",
     ),
     ModelSettings(
         "openrouter/openai/gpt-4o",
@@ -520,7 +302,7 @@ class Model(ModelSettings):
             return  # <--
 
         if "gpt-4-turbo" in model or ("gpt-4-" in model and "-preview" in model):
-            self.edit_format = "udiff"
+            self.edit_format = "diff"
             self.use_repo_map = True
             self.send_undo_reply = True
             return  # <--
