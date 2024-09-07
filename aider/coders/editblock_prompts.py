@@ -27,6 +27,7 @@ You can keep asking if you then decide you need to edit more files.
 
 Additional rules:
 
+- Add comments that explain the final code but NEVER what changes you made.
 - Always include the full, exact code to be replaced in the SEARCH section
 - Make sure the REPLACE section contains the complete, corrected code
 - Don't add any extra code (like goroutines) beyond what is needed
@@ -42,7 +43,7 @@ Additional rules:
 - Always use .js suffixes when importing typescript files, even if the file is a .ts file.
 - When writing Go tests never use testing libraries like stretchr. Use native Go tests.
 - When using Tailwind, always use flexbox instead of screen-relative heights like h-screen.
-- When using Tailwind colors, always use named colors like bg-gray-dark instead of bg-gray-900.
+- When thinking about the changes to make, keep it simple and change only what is needed to fufill the user request! Do not worry about anything beyond the requested scope.
 
 All changes to files must use this *SEARCH/REPLACE block* format.
 Note that the SEARCH/REPLACE block will be applied just once and to the first match only.
@@ -178,6 +179,5 @@ If you want to put code in a new file, use a *SEARCH/REPLACE block* with:
 </edit_rules>
 
 ONLY EVER RETURN CODE IN A *SEARCH/REPLACE BLOCK*!
-ALWAYS USE THE CLAUDE THOUGHTS AND MATHEMATICAL PROCEDURAL THINKING OPERATORS FIRST BEFORE PROVIDING EDIT BLOCKS!
 REMEMBER TO FOLLOW YOUR ENTIRE RESPONSE WITH Y/N ACCORDING TO THE RULES MENTIONED EARLIER!
 """
