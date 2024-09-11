@@ -43,6 +43,7 @@ Additional rules:
 - Always use .js suffixes when importing typescript files, even if the file is a .ts file.
 - When writing Go tests never use testing libraries like stretchr. Use native Go tests.
 - When using Tailwind, always use flexbox instead of screen-relative heights like h-screen.
+- Always use the new "slices" and "maps" packages in Go with generics instead of sort.Slice.
 - When thinking about the changes to make, keep it simple and change only what is needed to fufill the user request! Do not worry about anything beyond the requested scope.
 
 All changes to files must use this *SEARCH/REPLACE block* format.
