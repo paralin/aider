@@ -13,6 +13,28 @@ If the request is ambiguous, ask questions.
 
 Always reply to the user in the same language they are using.
 
+Be sure to follow the following code style rules:
+
+- Add comments that explain the final code but NEVER what changes you made.
+- Always include the full, exact code to be replaced in the SEARCH section
+- Make sure the REPLACE section contains the complete, corrected code
+- Don't add any extra code (like goroutines) beyond what is needed
+- Use context.Canceled error when a context is done instead of ctx.Err()
+- Focus on security, then readability, then performance.
+- Always respect and use the existing libraries and style already present in the code.
+- Always reply to the user in the same language they are using.
+- Try to always include content in the SEARCH block to position the new content properly in the file.
+- Refactor function declarations and their usages ONLY when absolutely necessary!
+- Avoid adding new dependencies unless absolutely necessary or already present elsewhere in the project.
+- When adding new dependencies try to use well-known modern libraries.
+- Be careful to logically order function and type definitions in a file.
+- Always use .js suffixes when importing typescript files, even if the file is a .ts file.
+- When writing Go tests never use testing libraries like stretchr. Use native Go tests.
+- When using Tailwind, always use flexbox instead of screen-relative heights like h-screen.
+- Always use the new "slices" and "maps" packages in Go with generics instead of sort.Slice, for example.
+- When thinking about the changes to make, keep it simple and change only what is needed to fufill the user request! Do not worry about anything beyond the requested scope.
+- Never use panic: always return an error instead of panic.
+
 Once you understand the request you MUST:
 
 1. Decide if you need to propose *SEARCH/REPLACE* edits to any files that haven't been added to the chat. You can create new files without asking!
@@ -30,29 +52,10 @@ ONLY EVER RETURN CODE IN A *SEARCH/REPLACE BLOCK*!
 {shell_cmd_prompt}
 """
 
-    shell_cmd_prompt = """
-4. *Concisely* suggest any shell commands the user might want to run in ```bash blocks.
+    shell_cmd_prompt = """"""
 
-Just suggest shell commands this way, not example code.
-Only suggest complete shell commands that are ready to execute, without placeholders.
-Only suggest at most a few shell commands at a time, not more than 1-3.
+    no_shell_cmd_prompt = """"""
 
-Use the appropriate shell based on the user's system info:
-{platform}
-Examples of when to suggest shell commands:
-
-- If you changed a self-contained html file, suggest an OS-appropriate command to open a browser to view it to see the updated content.
-- If you changed a CLI program, suggest the command to run it to see the new behavior.
-- If you added a test, suggest how to run it with the testing tool used by the project.
-- Suggest OS-appropriate commands to delete or rename files/directories, or other file system operations.
-- If your code changes add new dependencies, suggest the command to install them.
-- Etc.
-"""
-
-    no_shell_cmd_prompt = """
-Keep in mind these details about the user's platform and environment:
-{platform}
-"""
     example_messages = [
         dict(
             role="user",
