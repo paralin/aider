@@ -1,8 +1,11 @@
 import base64
 import os
+import time
+import webbrowser
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
+from io import StringIO
 from pathlib import Path
 
 from prompt_toolkit.completion import Completer, Completion, ThreadedCompleter
@@ -15,6 +18,7 @@ from prompt_toolkit.shortcuts import CompleteStyle, PromptSession
 from prompt_toolkit.styles import Style
 from pygments.lexers import MarkdownLexer, guess_lexer_for_filename
 from pygments.token import Token
+from rich.columns import Columns
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.style import Style as RichStyle
@@ -242,8 +246,9 @@ class InputOutput:
                 "output": self.output,
                 "lexer": PygmentsLexer(MarkdownLexer),
                 "editing_mode": self.editingmode,
-                "cursor": ModalCursorShapeConfig(),
             }
+            if self.editingmode == EditingMode.VI:
+                session_kwargs["cursor"] = ModalCursorShapeConfig()
             if self.input_history_file is not None:
                 session_kwargs["history"] = FileHistory(self.input_history_file)
             try:
@@ -329,14 +334,36 @@ class InputOutput:
             self.tool_error("Use --encoding to set the unicode encoding.")
             return
 
-    def write_text(self, filename, content):
+    def write_text(self, filename, content, max_retries=5, initial_delay=0.1):
+        """
+        Writes content to a file, retrying with progressive backoff if the file is locked.
+
+        :param filename: Path to the file to write.
+        :param content: Content to write to the file.
+        :param max_retries: Maximum number of retries if a file lock is encountered.
+        :param initial_delay: Initial delay (in seconds) before the first retry.
+        """
         if self.dry_run:
             return
-        try:
-            with open(str(filename), "w", encoding=self.encoding) as f:
-                f.write(content)
-        except OSError as err:
-            self.tool_error(f"Unable to write file {filename}: {err}")
+
+        delay = initial_delay
+        for attempt in range(max_retries):
+            try:
+                with open(str(filename), "w", encoding=self.encoding) as f:
+                    f.write(content)
+                return  # Successfully wrote the file
+            except PermissionError as err:
+                if attempt < max_retries - 1:
+                    time.sleep(delay)
+                    delay *= 2  # Exponential backoff
+                else:
+                    self.tool_error(
+                        f"Unable to write file {filename} after {max_retries} attempts: {err}"
+                    )
+                    raise
+            except OSError as err:
+                self.tool_error(f"Unable to write file {filename}: {err}")
+                raise
 
     def rule(self):
         if self.pretty:
@@ -480,6 +507,15 @@ class InputOutput:
     def ai_output(self, content):
         hist = "\n" + content.strip() + "\n\n"
         self.append_chat_history(hist)
+
+    def offer_url(self, url, prompt="Open URL for more info?"):
+        """Offer to open a URL in the browser, returns True if opened."""
+        if url in self.never_prompts:
+            return False
+        if self.confirm_ask(prompt, subject=url, allow_never=True):
+            webbrowser.open(url)
+            return True
+        return False
 
     def confirm_ask(
         self,
@@ -693,25 +729,51 @@ class InputOutput:
             try:
                 with self.chat_history_file.open("a", encoding=self.encoding, errors="ignore") as f:
                     f.write(text)
-            except (PermissionError, OSError):
-                self.tool_error(
-                    f"Warning: Unable to write to chat history file {self.chat_history_file}."
-                    " Permission denied."
-                )
+            except (PermissionError, OSError) as err:
+                print(f"Warning: Unable to write to chat history file {self.chat_history_file}.")
+                print(err)
                 self.chat_history_file = None  # Disable further attempts to write
 
     def format_files_for_input(self, rel_fnames, rel_read_only_fnames):
-        read_only_files = []
-        for full_path in sorted(rel_read_only_fnames or []):
-            read_only_files.append(f"{full_path} (read only)")
+        if not self.pretty:
+            read_only_files = []
+            for full_path in sorted(rel_read_only_fnames or []):
+                read_only_files.append(f"{full_path} (read only)")
 
-        editable_files = []
-        for full_path in sorted(rel_fnames):
-            if full_path in rel_read_only_fnames:
-                continue
-            editable_files.append(f"{full_path}")
+            editable_files = []
+            for full_path in sorted(rel_fnames):
+                if full_path in rel_read_only_fnames:
+                    continue
+                editable_files.append(f"{full_path}")
 
-        return "\n".join(read_only_files + editable_files) + "\n"
+            return "\n".join(read_only_files + editable_files) + "\n"
+
+        output = StringIO()
+        console = Console(file=output, force_terminal=False)
+
+        read_only_files = sorted(rel_read_only_fnames or [])
+        editable_files = [f for f in sorted(rel_fnames) if f not in rel_read_only_fnames]
+
+        if read_only_files:
+            files_with_label = ["Readonly:"] + read_only_files
+            read_only_output = StringIO()
+            Console(file=read_only_output, force_terminal=False).print(Columns(files_with_label))
+            read_only_lines = read_only_output.getvalue().splitlines()
+            console.print(Columns(files_with_label))
+
+        if editable_files:
+            files_with_label = editable_files
+            if read_only_files:
+                files_with_label = ["Editable:"] + editable_files
+                editable_output = StringIO()
+                Console(file=editable_output, force_terminal=False).print(Columns(files_with_label))
+                editable_lines = editable_output.getvalue().splitlines()
+
+                if len(read_only_lines) > 1 or len(editable_lines) > 1:
+                    console.print()
+            console.print(Columns(files_with_label))
+
+        return output.getvalue()
 
 
 def get_rel_fname(fname, root):

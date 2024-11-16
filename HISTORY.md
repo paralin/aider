@@ -1,6 +1,64 @@
 
 # Release history
 
+### main branch
+
+- Fixed bug in fuzzy model name matching when litellm provider info is missing.
+- Modified model metadata file loading to allow override of resource file.
+- Allow recursive loading of dirs using `--read`.
+- Updated dependency versions to pick up litellm fix for ollama models.
+
+### Aider v0.63.1
+
+- Fixed bug in git ignored file handling.
+- Improved error handling for git operations.
+
+### Aider v0.63.0
+
+- Support for Qwen 2.5 Coder 32B.
+- `/web` command just adds the page to the chat, without triggering an LLM response.
+- Improved prompting for the user's preferred chat language.
+- Improved handling of LiteLLM exceptions.
+- Bugfix for double-counting tokens when reporting cache stats.
+- Bugfix for the LLM creating new files.
+- Other small bug fixes.
+- Aider wrote 55% of the code in this release.
+
+### Aider v0.62.0
+
+- Full support for Claude 3.5 Haiku
+  - Scored 75% on [aider's code editing leaderboard](https://aider.chat/docs/leaderboards/).
+  - Almost as good as Sonnet at much lower cost.
+  - Launch with `--haiku` to use it.
+- Easily apply file edits from ChatGPT, Claude or other web apps
+  - Chat with ChatGPT or Claude via their web app. 
+  - Give it your source files and ask for the changes you want.
+  - Use the web app's "copy response" button to copy the entire reply from the LLM.
+  - Run `aider --apply-clipboard-edits file-to-edit.js`.
+  - Aider will edit your file with the LLM's changes.
+- Bugfix for creating new files.
+- Aider wrote 84% of the code in this release.  
+
+### Aider v0.61.0
+
+- Load and save aider slash-commands to files:
+  - `/save <fname>` command will make a file of `/add` and `/read-only` commands that recreate the current file context in the chat.
+  - `/load <fname>` will replay the commands in the file.
+  - You can use `/load` to run any arbitrary set of slash-commands, not just `/add` and `/read-only`.
+  - Use `--load <fname>` to run a list of commands on launch, before the interactive chat begins.
+- Anonymous, opt-in [analytics](https://aider.chat/docs/more/analytics.html) with no personal data sharing.
+- Aider follows litellm's `supports_vision` attribute to enable image support for models.
+- Bugfix for when diff mode flexibly handles the model using the wrong filename.
+- Displays filenames in sorted order for `/add` and `/read-only`.
+- New `--no-fancy-input` switch disables prompt toolkit input, now still available with `--no-pretty`.
+- Override browser config with `--no-browser` or `--no-gui`.
+- Offer to open documentation URLs when errors occur.
+- Properly support all o1 models, regardless of provider.
+- Improved layout of filenames above input prompt.
+- Better handle corrupted repomap tags cache.
+- Improved handling of API errors, especially when accessing the weak model.
+- Aider wrote 68% of the code in this release.
+
 ### Aider v0.60.1
 
 - Enable image support for Sonnet 10/22.

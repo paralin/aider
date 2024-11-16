@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 from prompt_toolkit.enums import EditingMode
 
 from aider import __version__, models, urls, utils
+from aider.analytics import Analytics
 from aider.args import get_parser
 from aider.coders import Coder
 from aider.commands import Commands, SwitchCoder
@@ -86,15 +87,25 @@ def make_new_repo(git_root, io):
 
 
 def setup_git(git_root, io):
+    try:
+        cwd = Path.cwd()
+    except OSError:
+        cwd = None
+
     repo = None
 
     if git_root:
-        repo = git.Repo(git_root)
-    elif Path.cwd() == Path.home():
+        try:
+            repo = git.Repo(git_root)
+        except ANY_GIT_ERROR:
+            pass
+    elif cwd == Path.home():
         io.tool_warning("You should probably run aider in a directory, not your home dir.")
         return
-    elif io.confirm_ask("No git repo found, create one to track aider's changes (recommended)?"):
-        git_root = str(Path.cwd().resolve())
+    elif cwd and io.confirm_ask(
+        "No git repo found, create one to track aider's changes (recommended)?"
+    ):
+        git_root = str(cwd.resolve())
         repo = make_new_repo(git_root, io)
 
     if not repo:
@@ -194,7 +205,10 @@ def launch_gui(args):
         "--server.runOnSave=false",
     ]
 
-    if "-dev" in __version__:
+    # https://github.com/Aider-AI/aider/issues/2193
+    is_dev = "-dev" in str(__version__)
+
+    if is_dev:
         print("Watching for file changes.")
     else:
         st_args += [
@@ -318,13 +332,15 @@ def load_dotenv_files(git_root, dotenv_fname, encoding="utf-8"):
 
 
 def register_litellm_models(git_root, model_metadata_fname, io, verbose=False):
-    model_metatdata_files = generate_search_path_list(
-        ".aider.model.metadata.json", git_root, model_metadata_fname
-    )
+    model_metatdata_files = []
 
     # Add the resource file path
     resource_metadata = importlib_resources.files("aider.resources").joinpath("model-metadata.json")
     model_metatdata_files.append(str(resource_metadata))
+
+    model_metatdata_files += generate_search_path_list(
+        ".aider.model.metadata.json", git_root, model_metadata_fname
+    )
 
     try:
         model_metadata_files_loaded = models.register_litellm_models(model_metatdata_files)
@@ -362,7 +378,7 @@ def sanity_check_repo(repo, io):
         io.tool_error("Aider only works with git repos with version number 1 or 2.")
         io.tool_output("You may be able to convert your repo: git update-index --index-version=2")
         io.tool_output("Or run aider --no-git to proceed without using git.")
-        io.tool_output(urls.git_index_version)
+        io.offer_url(urls.git_index_version, "Open documentation url for more info?")
         return False
 
     io.tool_error("Unable to read git repository, it may be corrupt?")
@@ -422,6 +438,10 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
 
     # Parse again to include any arguments that might have been defined in .env
     args = parser.parse_args(argv)
+
+    if args.analytics_disable:
+        analytics = Analytics(permanently_disable=True)
+        print("Analytics have been permanently disabled.")
 
     if not args.verify_ssl:
         import httpx
@@ -484,9 +504,35 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
         io = get_io(False)
         io.tool_warning("Terminal does not support pretty output (UnicodeDecodeError)")
 
+    analytics = Analytics(logfile=args.analytics_log, permanently_disable=args.analytics_disable)
+    if args.analytics:
+        if analytics.need_to_ask():
+            io.tool_output(
+                "Aider respects your privacy and never collects your code, chat messages, keys or"
+                " personal info."
+            )
+            io.tool_output(f"For more info: {urls.analytics}")
+            disable = not io.confirm_ask(
+                "Allow collection of anonymous analytics to help improve aider?"
+            )
+
+            analytics.asked_opt_in = True
+            if disable:
+                analytics.disable(permanently=True)
+                io.tool_output("Analytics have been permanently disabled.")
+
+            analytics.save_data()
+            io.tool_output()
+
+        # This is a no-op if the user has opted out
+        analytics.enable()
+
+    analytics.event("launched")
+
     if args.gui and not return_coder:
         if not check_streamlit_install(io):
             return
+        analytics.event("gui session")
         launch_gui(argv)
         return
 
@@ -496,7 +542,14 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
 
     all_files = args.files + (args.file or [])
     fnames = [str(Path(fn).resolve()) for fn in all_files]
-    read_only_fnames = [str(Path(fn).resolve()) for fn in (args.read or [])]
+    read_only_fnames = []
+    for fn in args.read or []:
+        path = Path(fn).resolve()
+        if path.is_dir():
+            read_only_fnames.extend(str(f) for f in path.rglob("*") if f.is_file())
+        else:
+            read_only_fnames.append(str(path))
+
     if len(all_files) > 1:
         good = True
         for fname in all_files:
@@ -601,11 +654,12 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
     if args.show_model_warnings:
         problem = models.sanity_check_models(io, main_model)
         if problem:
+            analytics.event("model warning", main_model=main_model)
             io.tool_output("You can skip this check with --no-show-model-warnings")
-            io.tool_output()
+
             try:
-                if not io.confirm_ask("Proceed anyway?"):
-                    return 1
+                io.offer_url(urls.model_warnings, "Open documentation url for more info?")
+                io.tool_output()
             except KeyboardInterrupt:
                 return 1
 
@@ -674,6 +728,7 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
             test_cmd=args.test_cmd,
             commands=commands,
             summarizer=summarizer,
+            analytics=analytics,
             map_refresh=args.map_refresh,
             cache_prompts=args.cache_prompts,
             map_mul_no_files=args.map_multiplier_no_files,
@@ -732,6 +787,10 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
         coder.apply_updates()
         return
 
+    if args.apply_clipboard_edits:
+        args.edit_format = main_model.editor_edit_format
+        args.message = "/paste"
+
     if "VSCODE_GIT_IPC_HANDLE" in os.environ:
         args.pretty = False
         io.tool_output("VSCode terminal detected, pretty output has been disabled.")
@@ -746,6 +805,9 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
 
         io.tool_output(f"Cur working dir: {Path.cwd()}")
         io.tool_output(f"Git working dir: {git_root}")
+
+    if args.load:
+        commands.cmd_load(args.load)
 
     if args.message:
         io.add_to_input_history(args.message)
@@ -771,6 +833,8 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
 
     if args.exit:
         return
+
+    analytics.event("cli session", main_model=main_model, edit_format=main_model.edit_format)
 
     while True:
         try:
@@ -819,7 +883,8 @@ def check_and_load_imports(io, verbose=False):
             except Exception as err:
                 io.tool_error(str(err))
                 io.tool_output("Error loading required imports. Did you install aider properly?")
-                io.tool_output("https://aider.chat/docs/install/install.html")
+                io.offer_url(urls.install_properly, "Open documentation url for more info?")
+
                 sys.exit(1)
 
             installs[str(key)] = True

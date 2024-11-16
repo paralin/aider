@@ -1,6 +1,6 @@
 ---
 parent: More info
-nav_order: 920
+nav_order: 480
 description: Aider can handle "infinite output" from models that support prefill.
 ---
 
@@ -55,8 +55,10 @@ model_list = "\n".join(f"- {model}" for model in sorted(prefill_models))
 
 cog.out(model_list)
 ]]]-->
+- anthropic.claude-3-5-haiku-20241022-v1:0
 - anthropic.claude-3-5-sonnet-20241022-v2:0
 - anthropic/claude-3-5-sonnet-20241022
+- claude-3-5-haiku-20241022
 - claude-3-5-sonnet-20240620
 - claude-3-5-sonnet-20241022
 - claude-3-haiku-20240307
@@ -87,7 +89,9 @@ cog.out(model_list)
 - mistral/open-mixtral-8x7b
 - mistral/pixtral-12b-2409
 - openrouter/anthropic/claude-3.5-sonnet
+- us.anthropic.claude-3-5-haiku-20241022-v1:0
 - us.anthropic.claude-3-5-sonnet-20241022-v2:0
+- vertex_ai/claude-3-5-haiku@20241022
 - vertex_ai/claude-3-5-sonnet-v2@20241022
 - vertex_ai/claude-3-5-sonnet@20240620
 - vertex_ai/claude-3-haiku@20240307

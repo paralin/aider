@@ -1,6 +1,6 @@
 ---
 parent: More info
-nav_order: 900
+nav_order: 400
 description: You can script aider via the command line or python.
 ---
 
@@ -95,3 +95,6 @@ io = InputOutput(yes=True)
 coder = Coder.create(model=model, fnames=fnames, io=io)
 ```
 
+{: .note }
+The scripting API is not officially supported or documented and may
+change without warning.

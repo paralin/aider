@@ -17,9 +17,12 @@ from collections import defaultdict
 from datetime import datetime
 from json.decoder import JSONDecodeError
 from pathlib import Path
+from typing import List
 
 from aider import __version__, models, prompts, urls, utils
+from aider.analytics import Analytics
 from aider.commands import Commands
+from aider.exceptions import LiteLLMExceptions
 from aider.history import ChatSummary
 from aider.io import ConfirmGroup, InputOutput
 from aider.linter import Linter
@@ -27,7 +30,7 @@ from aider.llm import litellm
 from aider.repo import ANY_GIT_ERROR, GitRepo
 from aider.repomap import RepoMap
 from aider.run_cmd import run_cmd
-from aider.sendchat import RETRY_TIMEOUT, retry_exceptions, send_completion
+from aider.sendchat import RETRY_TIMEOUT, send_completion
 from aider.utils import format_content, format_messages, format_tokens, is_image_file
 
 from ..dump import dump  # noqa: F401
@@ -258,12 +261,17 @@ class Coder:
         commands=None,
         summarizer=None,
         total_cost=0.0,
+        analytics=None,
         map_refresh="auto",
         cache_prompts=False,
         num_cache_warming_pings=0,
         suggest_shell_commands=True,
         chat_language=None,
     ):
+        # Fill in a dummy Analytics if needed, but it is never .enable()'d
+        self.analytics = analytics if analytics is not None else Analytics()
+
+        self.event = self.analytics.event
         self.chat_language = chat_language
         self.commit_before_message = []
         self.aider_commit_hashes = set()
@@ -347,6 +355,9 @@ class Coder:
 
         for fname in fnames:
             fname = Path(fname)
+            if self.repo and self.repo.git_ignored_file(fname):
+                self.io.tool_warning(f"Skipping {fname} that matches gitignore spec.")
+
             if self.repo and self.repo.ignored_file(fname):
                 self.io.tool_warning(f"Skipping {fname} that matches aiderignore spec.")
                 continue
@@ -782,18 +793,37 @@ class Coder:
             self.num_reflections += 1
             message = self.reflected_message
 
-    def check_for_urls(self, inp):
+    def check_and_open_urls(self, exc, friendly_msg=None):
+        """Check exception for URLs, offer to open in a browser, with user-friendly error msgs."""
+        text = str(exc)
+
+        if friendly_msg:
+            self.io.tool_warning(text)
+            self.io.tool_error(f"{friendly_msg}")
+        else:
+            self.io.tool_error(text)
+
+        url_pattern = re.compile(r"(https?://[^\s/$.?#].[^\s]*)")
+        urls = list(set(url_pattern.findall(text)))  # Use set to remove duplicates
+        for url in urls:
+            url = url.rstrip(".',\"")
+            self.io.offer_url(url)
+        return urls
+
+    def check_for_urls(self, inp: str) -> List[str]:
+        """Check input for URLs and offer to add them to the chat."""
         url_pattern = re.compile(r"(https?://[^\s/$.?#].[^\s]*[^\s,.])")
         urls = list(set(url_pattern.findall(inp)))  # Use set to remove duplicates
         added_urls = []
         group = ConfirmGroup(urls)
         for url in urls:
             if url not in self.rejected_urls:
+                url = url.rstrip(".',\"")
                 if self.io.confirm_ask(
                     "Add URL to the chat?", subject=url, group=group, allow_never=True
                 ):
                     inp += "\n\n"
-                    inp += self.commands.cmd_web(url)
+                    inp += self.commands.cmd_web(url, return_content=True)
                     added_urls.append(url)
                 else:
                     self.rejected_urls.add(url)
@@ -929,12 +959,18 @@ class Coder:
                 platform=platform_text
             )
 
+        if self.chat_language:
+            language = self.chat_language
+        else:
+            language = "in the same language they are using"
+
         prompt = prompt.format(
             fence=self.fence,
             lazy_prompt=lazy_prompt,
             platform=platform_text,
             shell_cmd_prompt=shell_cmd_prompt,
             shell_cmd_reminder=shell_cmd_reminder,
+            language=language,
         )
         return prompt
 
@@ -1120,6 +1156,8 @@ class Coder:
 
         retry_delay = 0.125
 
+        litellm_ex = LiteLLMExceptions()
+
         self.usage_report = None
         exhausted = False
         interrupted = False
@@ -1128,24 +1166,37 @@ class Coder:
                 try:
                     yield from self.send(messages, functions=self.functions)
                     break
-                except retry_exceptions() as err:
-                    self.io.tool_warning(str(err))
-                    retry_delay *= 2
-                    if retry_delay > RETRY_TIMEOUT:
+                except litellm_ex.exceptions_tuple() as err:
+                    ex_info = litellm_ex.get_ex_info(err)
+
+                    if ex_info.name == "ContextWindowExceededError":
+                        exhausted = True
                         break
+
+                    should_retry = ex_info.retry
+                    if should_retry:
+                        retry_delay *= 2
+                        if retry_delay > RETRY_TIMEOUT:
+                            should_retry = False
+
+                    if not should_retry:
+                        self.mdstream = None
+                        self.check_and_open_urls(err, ex_info.description)
+                        break
+
+                    err_msg = str(err)
+                    if ex_info.description:
+                        self.io.tool_warning(err_msg)
+                        self.io.tool_error(ex_info.description)
+                    else:
+                        self.io.tool_error(err_msg)
+
                     self.io.tool_output(f"Retrying in {retry_delay:.1f} seconds...")
                     time.sleep(retry_delay)
                     continue
                 except KeyboardInterrupt:
                     interrupted = True
                     break
-                except litellm.ContextWindowExceededError:
-                    # The input is overflowing the context window!
-                    exhausted = True
-                    break
-                except litellm.exceptions.BadRequestError as br_err:
-                    self.io.tool_error(f"BadRequestError: {br_err}")
-                    return
                 except FinishReasonLength:
                     # We hit the output limit!
                     if not self.main_model.info.get("supports_assistant_prefill"):
@@ -1161,9 +1212,10 @@ class Coder:
                             dict(role="assistant", content=self.multi_response_content, prefix=True)
                         )
                 except Exception as err:
-                    self.io.tool_error(f"Unexpected error: {err}")
+                    self.mdstream = None
                     lines = traceback.format_exception(type(err), err, err.__traceback__)
-                    self.io.tool_error("".join(lines))
+                    self.io.tool_warning("".join(lines))
+                    self.io.tool_error(str(err))
                     return
         finally:
             if self.mdstream:
@@ -1308,11 +1360,9 @@ class Coder:
             res.append("- Use /clear to clear the chat history.")
             res.append("- Break your code into smaller source files.")
 
-        res.append("")
-        res.append(f"For more info: {urls.token_limits}")
-
         res = "".join([line + "\n" for line in res])
         self.io.tool_error(res)
+        self.io.offer_url(urls.token_limits)
 
     def lint_edited(self, fnames):
         res = ""
@@ -1556,7 +1606,6 @@ class Coder:
                 completion.usage, "cache_creation_input_tokens"
             ):
                 self.message_tokens_sent += prompt_tokens
-                self.message_tokens_sent += cache_hit_tokens
                 self.message_tokens_sent += cache_write_tokens
             else:
                 self.message_tokens_sent += prompt_tokens
@@ -1638,11 +1687,27 @@ class Coder:
         self.usage_report = tokens_report + sep + cost_report
 
     def show_usage_report(self):
-        if self.usage_report:
-            self.io.tool_output(self.usage_report)
-            self.message_cost = 0.0
-            self.message_tokens_sent = 0
-            self.message_tokens_received = 0
+        if not self.usage_report:
+            return
+
+        self.io.tool_output(self.usage_report)
+
+        prompt_tokens = self.message_tokens_sent
+        completion_tokens = self.message_tokens_received
+        self.event(
+            "message_send",
+            main_model=self.main_model,
+            edit_format=self.edit_format,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=prompt_tokens + completion_tokens,
+            cost=self.message_cost,
+            total_cost=self.total_cost,
+        )
+
+        self.message_cost = 0.0
+        self.message_tokens_sent = 0
+        self.message_tokens_received = 0
 
     def get_multi_response_content(self, final=False):
         cur = self.multi_response_content or ""
@@ -1716,6 +1781,10 @@ class Coder:
         if full_path in self.abs_fnames:
             self.check_for_dirty_commit(path)
             return True
+
+        if self.repo and self.repo.git_ignored_file(path):
+            self.io.tool_warning(f"Skipping edits to {path} that matches gitignore spec.")
+            return
 
         if not Path(full_path).exists():
             if not self.io.confirm_ask("Create new file?", subject=path):
@@ -1811,8 +1880,10 @@ class Coder:
         edited = set()
         try:
             edits = self.get_edits()
+            edits = self.apply_edits_dry_run(edits)
             edits = self.prepare_to_edit(edits)
             edited = set(edit[0] for edit in edits)
+
             self.apply_edits(edits)
         except ValueError as err:
             self.num_malformed_responses += 1
@@ -1939,6 +2010,9 @@ class Coder:
 
     def apply_edits(self, edits):
         return
+
+    def apply_edits_dry_run(self, edits):
+        return edits
 
     def run_shell_commands(self):
         if not self.suggest_shell_commands:
