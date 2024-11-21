@@ -13,7 +13,7 @@ Just show the changes needed.
 
 DO NOT show the entire updated function/file/etc!
 
-Always reply in the same language as the change request.
+Always reply in the same programming language as the change request and in english.
 
 Be sure to follow the following code style rules:
 
@@ -24,7 +24,6 @@ Be sure to follow the following code style rules:
 - Use context.Canceled error when a context is done instead of ctx.Err()
 - Focus on security, then readability, then performance.
 - Always respect and use the existing libraries and style already present in the code.
-- Always reply to the user in the same language they are using.
 - Refactor function declarations and their usages ONLY when absolutely necessary!
 - Avoid adding new dependencies unless absolutely necessary or already present elsewhere in the project.
 - When adding new dependencies try to use well-known modern libraries.
