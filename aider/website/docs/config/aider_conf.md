@@ -327,8 +327,8 @@ cog.outl("```")
 ############
 # Analytics:
 
-## Enable/disable analytics for one session (default: False)
-#analytics: false
+## Enable/disable analytics for current session (default: random)
+#analytics: xxx
 
 ## Specify a file to log analytics events
 #analytics-log: xxx
@@ -369,6 +369,9 @@ cog.outl("```")
 
 ## Check for new aider versions on launch
 #check-update: true
+
+## Show release notes on first run of new version (default: None, ask user)
+#show-release-notes: xxx
 
 ## Install the latest version from the main branch
 #install-main-branch: false

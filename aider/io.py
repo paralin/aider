@@ -443,11 +443,26 @@ class InputOutput:
 
             if line and line[0] == "{" and not multiline_input:
                 multiline_input = True
-                inp += line[1:] + "\n"
+                # Check for optional tag after opening {
+                if len(line) > 1:
+                    tag = "".join(c for c in line[1:] if c.isalnum())
+                    multiline_tag = tag
+                    inp += line[len(tag) + 1 :] + "\n"
+                else:
+                    multiline_tag = None
+                    inp += line[1:] + "\n"
                 continue
             elif line and line[-1] == "}" and multiline_input:
-                inp += line[:-1] + "\n"
-                break
+                if multiline_tag:
+                    # Check if the line ends with tag}
+                    if line.endswith(f"{multiline_tag}}}"):
+                        inp += line[: -len(multiline_tag) - 1] + "\n"
+                        break
+                    else:
+                        inp += line + "\n"
+                else:
+                    inp += line[:-1] + "\n"
+                    break
             elif multiline_input:
                 inp += line + "\n"
             else:
@@ -463,8 +478,8 @@ class InputOutput:
             return
         FileHistory(self.input_history_file).append_string(inp)
         # Also add to the in-memory history if it exists
-        if hasattr(self, "session") and hasattr(self.session, "history"):
-            self.session.history.append_string(inp)
+        if self.prompt_session and self.prompt_session.history:
+            self.prompt_session.history.append_string(inp)
 
     def get_input_history(self):
         if not self.input_history_file:
@@ -481,14 +496,17 @@ class InputOutput:
             log_file.write(f"{role.upper()} {timestamp}\n")
             log_file.write(content + "\n")
 
+    def display_user_input(self, inp):
+        if self.pretty and self.user_input_color:
+            style = dict(style=self.user_input_color)
+        else:
+            style = dict()
+
+        self.console.print(Text(inp), **style)
+
     def user_input(self, inp, log_only=True):
         if not log_only:
-            if self.pretty and self.user_input_color:
-                style = dict(style=self.user_input_color)
-            else:
-                style = dict()
-
-            self.console.print(Text(inp), **style)
+            self.display_user_input(inp)
 
         prefix = "####"
         if inp:
