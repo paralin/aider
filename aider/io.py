@@ -198,6 +198,7 @@ class InputOutput:
         editingmode=EditingMode.EMACS,
         fancy_input=True,
     ):
+        self.placeholder = None
         self.never_prompts = set()
         self.editingmode = editingmode
         no_color = os.environ.get("NO_COLOR")
@@ -427,8 +428,13 @@ class InputOutput:
 
             try:
                 if self.prompt_session:
+                    # Use placeholder if set, then clear it
+                    default = self.placeholder or ""
+                    self.placeholder = None
+
                     line = self.prompt_session.prompt(
                         show,
+                        default=default,
                         completer=completer_instance,
                         reserve_space_for_menu=4,
                         complete_style=CompleteStyle.MULTI_COLUMN,
@@ -441,28 +447,38 @@ class InputOutput:
                 self.tool_error(str(err))
                 return ""
 
-            if line and line[0] == "{" and not multiline_input:
-                multiline_input = True
-                # Check for optional tag after opening {
-                if len(line) > 1:
-                    tag = "".join(c for c in line[1:] if c.isalnum())
-                    multiline_tag = tag
-                    inp += line[len(tag) + 1 :] + "\n"
-                else:
+            if line.strip("\r\n") and not multiline_input:
+                stripped = line.strip("\r\n")
+                if stripped == "{":
+                    multiline_input = True
                     multiline_tag = None
-                    inp += line[1:] + "\n"
+                    inp += ""
+                elif stripped[0] == "{":
+                    # Extract tag if it exists (only alphanumeric chars)
+                    tag = "".join(c for c in stripped[1:] if c.isalnum())
+                    if stripped == "{" + tag:
+                        multiline_input = True
+                        multiline_tag = tag
+                        inp += ""
+                    else:
+                        inp = line
+                        break
+                else:
+                    inp = line
+                    break
                 continue
-            elif line and line[-1] == "}" and multiline_input:
+            elif multiline_input and line.strip():
                 if multiline_tag:
-                    # Check if the line ends with tag}
-                    if line.endswith(f"{multiline_tag}}}"):
-                        inp += line[: -len(multiline_tag) - 1] + "\n"
+                    # Check if line is exactly "tag}"
+                    if line.strip("\r\n") == f"{multiline_tag}}}":
                         break
                     else:
                         inp += line + "\n"
-                else:
-                    inp += line[:-1] + "\n"
+                # Check if line is exactly "}"
+                elif line.strip("\r\n") == "}":
                     break
+                else:
+                    inp += line + "\n"
             elif multiline_input:
                 inp += line + "\n"
             else:
@@ -526,11 +542,11 @@ class InputOutput:
         hist = "\n" + content.strip() + "\n\n"
         self.append_chat_history(hist)
 
-    def offer_url(self, url, prompt="Open URL for more info?"):
+    def offer_url(self, url, prompt="Open URL for more info?", allow_never=True):
         """Offer to open a URL in the browser, returns True if opened."""
         if url in self.never_prompts:
             return False
-        if self.confirm_ask(prompt, subject=url, allow_never=True):
+        if self.confirm_ask(prompt, subject=url, allow_never=allow_never):
             webbrowser.open(url)
             return True
         return False
@@ -728,6 +744,10 @@ class InputOutput:
             show_resp = Text(message or "<no response>")
 
         self.console.print(show_resp)
+
+    def set_placeholder(self, placeholder):
+        """Set a one-time placeholder text for the next input prompt."""
+        self.placeholder = placeholder
 
     def print(self, message=""):
         print(message)

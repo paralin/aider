@@ -46,7 +46,8 @@
 
 - dirname: 2024-05-03-20-47-24--gemini-1.5-pro-diff-fenced
   test_cases: 133
-  model: gemini-1.5-pro-latest
+  released: 2024-05-03
+  model: gemini-1.5-pro-001
   edit_format: diff-fenced
   commit_hash: 3a48dfb, 5d32dd7
   pass_rate_1: 45.9
@@ -410,6 +411,7 @@
 - dirname: 2024-06-08-22-37-55--qwen2-72b-instruct-whole
   test_cases: 133
   model: Qwen2 72B Instruct
+  released: 2024-06-08
   edit_format: whole
   commit_hash: 02c7335-dirty, 1a97498-dirty
   pass_rate_1: 44.4
@@ -835,6 +837,7 @@
 - dirname: 2024-08-28-07-10-50--gemini-1.5-pro-exp-0827-diff-fenced
   test_cases: 133
   model: gemini-1.5-pro-exp-0827
+  released: 2024-08-27
   edit_format: diff-fenced
   commit_hash: d8adc75
   pass_rate_1: 54.9
@@ -1206,6 +1209,7 @@
 - dirname: 2024-09-24-16-26-45--gemini-1.5-pro-002-diff-fenced
   test_cases: 133
   model: gemini-1.5-pro-002
+  released: 2024-09-24
   edit_format: diff-fenced
   commit_hash: 6b5fe9b, 3edcd71
   pass_rate_1: 49.6
@@ -1780,7 +1784,7 @@
 
 - dirname: 2024-11-09-11-09-15--Qwen2.5-Coder-32B-Instruct
   test_cases: 133
-  model: Qwen2.5-Coder-32B-Instruct (diff)
+  model: Qwen2.5-Coder-32B-Instruct
   released: 2024-11-12
   edit_format: diff
   commit_hash: ec9982a
@@ -1796,7 +1800,7 @@
   indentation_errors: 0
   exhausted_context_windows: 0
   test_timeouts: 3
-  command: aider --model openai/Qwen2.5-Coder-32B-Instruct
+  command: aider --model openai/hf:Qwen/Qwen2.5-Coder-32B-Instruct --openai-api-base https://glhf.chat/api/openai/v1
   date: 2024-11-09
   versions: 0.59.2.dev
   seconds_per_case: 22.5
@@ -1849,3 +1853,96 @@
   versions: 0.63.3.dev
   seconds_per_case: 6.0
   total_cost: 0.0000
+
+- dirname: 2024-09-20-21-47-17--qwen2.5-32b-instruct-q8_0-whole
+  test_cases: 133
+  model: ollama/qwen2.5:32b-instruct-q8_0
+  edit_format: whole
+  commit_hash: 2753ac6
+  pass_rate_1: 46.6
+  pass_rate_2: 58.6
+  percent_cases_well_formed: 100.0
+  error_outputs: 0
+  num_malformed_responses: 0
+  num_with_malformed_responses: 0
+  user_asks: 1
+  lazy_comments: 0
+  syntax_errors: 0
+  indentation_errors: 0
+  exhausted_context_windows: 0
+  test_timeouts: 2
+  command: aider --model ollama/qwen2.5:32b-instruct-q8_0
+  date: 2024-09-20
+  versions: 0.56.1.dev
+  seconds_per_case: 1763.7
+  total_cost: 0.0000
+
+- dirname: 2024-11-20-15-17-37--qwen25-32b-or-diff
+  test_cases: 133
+  model: openrouter/qwen/qwen-2.5-coder-32b-instruct
+  edit_format: diff
+  commit_hash: e917424
+  pass_rate_1: 49.6
+  pass_rate_2: 65.4
+  percent_cases_well_formed: 84.2
+  error_outputs: 43
+  num_malformed_responses: 31
+  num_with_malformed_responses: 21
+  user_asks: 43
+  lazy_comments: 0
+  syntax_errors: 2
+  indentation_errors: 2
+  exhausted_context_windows: 12
+  test_timeouts: 2
+  command: aider --model openrouter/qwen/qwen-2.5-coder-32b-instruct
+  date: 2024-11-20
+  versions: 0.63.3.dev
+  seconds_per_case: 40.7
+  total_cost: 0.1497
+
+- dirname: 2024-11-21-17-46-36--gemini-exp-1121-diff
+  test_cases: 133
+  model: gemini-exp-1121
+  released: 2024-11-21
+  edit_format: diff
+  commit_hash: e94961a
+  pass_rate_1: 46.6
+  pass_rate_2: 57.9
+  percent_cases_well_formed: 83.5
+  error_outputs: 101
+  num_malformed_responses: 101
+  num_with_malformed_responses: 22
+  user_asks: 5
+  lazy_comments: 0
+  syntax_errors: 0
+  indentation_errors: 2
+  exhausted_context_windows: 0
+  test_timeouts: 3
+  command: aider --model gemini/gemini-exp-1121
+  date: 2024-11-21
+  versions: 0.63.3.dev
+  seconds_per_case: 60.3
+  total_cost: 0.0000
+
+- dirname: 2024-11-15-20-33-31--gemini-exp-1114-diff
+  test_cases: 133
+  model: gemini-exp-1114
+  released: 2024-11-14
+  edit_format: diff
+  commit_hash: 0bf17a4
+  pass_rate_1: 50.4
+  pass_rate_2: 60.9
+  percent_cases_well_formed: 85.7
+  error_outputs: 70
+  num_malformed_responses: 70
+  num_with_malformed_responses: 19
+  user_asks: 2
+  lazy_comments: 0
+  syntax_errors: 0
+  indentation_errors: 0
+  exhausted_context_windows: 0
+  test_timeouts: 4
+  command: aider --model gemini/gemini-exp-1114
+  date: 2024-11-15
+  versions: 0.63.2.dev
+  seconds_per_case: 38.6
