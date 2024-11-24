@@ -27,12 +27,14 @@ Be sure to follow the following code style rules:
 - Refactor function declarations and their usages ONLY when absolutely necessary!
 - Avoid adding new dependencies unless absolutely necessary or already present elsewhere in the project.
 - When adding new dependencies try to use well-known modern libraries.
-- Be careful to logically order function and type definitions in a file.
 - Always use .js suffixes when importing typescript files, even if the file is a .ts file.
 - When writing Go tests never use testing libraries like stretchr. Use native Go tests.
 - When using Go protobufs always use getter functions, for example for "string my_field = 1;" use msg.GetMyField() instead of msg.MyField.
 - When using Go protobufs always assume that getter functions have nil checks within, for example "MyMessage(nil).GetMyField()" will not panic.
 - When using Go protobufs never check if a message is nil (for example, "if msg == nil") because nil messages are equivalent to empty messages.
+- Be careful to logically order function and type definitions in a file.
+- If there are any type assertions (like var _ = (MyInteface)(*MyStruct)) then be sure these appear at the end of the file, after all other content.
+- Try to place code lines after comment lines and not before. The code line should appear just after a comment when starting a block of code with whitespace before it.
 - When using broadcast.Broadcast, always call broadcast() before calling getWaitCh() since broadcast() closes the value returned from getWaitCh().
 - When using Tailwind, always use flexbox instead of screen-relative heights like h-screen.
 - Always use the new "slices" and "maps" packages in Go with generics instead of sort.Slice, for example.
