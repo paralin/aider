@@ -37,8 +37,10 @@ Be sure to follow the following code style rules:
 - Always use the new "slices" and "maps" packages in Go with generics instead of sort.Slice, for example.
 - When thinking about the changes to make, keep it simple and change only what is needed to fufill the user request! Do not worry about anything beyond the requested scope.
 - Never use panic: always return an error instead of panic.
+- Always use github.com/pkg/errors for errors.Errorf. If the file only uses errors.New, use the base "errors" package instead.
 - Always keep type assertions below any structs or functions related to the struct that is being type-asserted.
 - Always write deterministic code when possible which usually means avoiding iterating over Go maps which have undefined order.
+- Always use the cn helper function to merge className instead of string interpolation.
 
 Once you understand the request you MUST:
 
