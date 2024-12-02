@@ -132,8 +132,14 @@ cog.outl("```")
 ## Specify a file with context window and costs for unknown models
 #AIDER_MODEL_METADATA_FILE=.aider.model.metadata.json
 
+## Add a model alias (can be used multiple times)
+#AIDER_ALIAS=
+
 ## Verify the SSL cert when connecting to models (default: True)
 #AIDER_VERIFY_SSL=true
+
+## Timeout in seconds for API calls (default: None)
+#AIDER_TIMEOUT=
 
 ## Specify what edit format the LLM should use (default depends on model)
 #AIDER_EDIT_FORMAT=
@@ -288,6 +294,9 @@ cog.outl("```")
 ## Skip the sanity check for the git repository (default: False)
 #AIDER_SKIP_SANITY_CHECK_REPO=false
 
+## Enable/disable watching files for ai coding comments (default: False)
+#AIDER_WATCH_FILES=false
+
 ########################
 # Fixing and committing:
 
@@ -306,7 +315,7 @@ cog.outl("```")
 ## Enable/disable automatic testing after changes (default: False)
 #AIDER_AUTO_TEST=false
 
-## Run tests and fix problems found
+## Run tests, fix problems found and then exit
 #AIDER_TEST=false
 
 ############
@@ -393,6 +402,9 @@ cog.outl("```")
 ## Enable/disable fancy input with history and completion (default: True)
 #AIDER_FANCY_INPUT=true
 
+## Enable/disable detection and offering to add URLs to chat (default: True)
+#AIDER_DETECT_URLS=true
+
 ## Specify which editor to use for the /editor command
 #AIDER_EDITOR=
 
@@ -404,7 +416,8 @@ cog.outl("```")
 
 ## Specify the language for voice using ISO 639-1 code (default: auto)
 #AIDER_VOICE_LANGUAGE=en
+
+## Specify the input device name for voice recording
+#AIDER_VOICE_INPUT_DEVICE=
 ```
 <!--[[[end]]]-->
-
-

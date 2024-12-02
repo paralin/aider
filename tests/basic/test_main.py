@@ -637,6 +637,53 @@ class TestMain(TestCase):
             )
             self.assertTrue(coder.suggest_shell_commands)
 
+    def test_detect_urls_default(self):
+        with GitTemporaryDirectory():
+            coder = main(
+                ["--exit", "--yes"],
+                input=DummyInput(),
+                output=DummyOutput(),
+                return_coder=True,
+            )
+            self.assertTrue(coder.detect_urls)
+
+    def test_detect_urls_disabled(self):
+        with GitTemporaryDirectory():
+            coder = main(
+                ["--no-detect-urls", "--exit", "--yes"],
+                input=DummyInput(),
+                output=DummyOutput(),
+                return_coder=True,
+            )
+            self.assertFalse(coder.detect_urls)
+
+    def test_detect_urls_enabled(self):
+        with GitTemporaryDirectory():
+            coder = main(
+                ["--detect-urls", "--exit", "--yes"],
+                input=DummyInput(),
+                output=DummyOutput(),
+                return_coder=True,
+            )
+            self.assertTrue(coder.detect_urls)
+
+    def test_pytest_env_vars(self):
+        # Verify that environment variables from pytest.ini are properly set
+        self.assertEqual(os.environ.get("AIDER_ANALYTICS"), "false")
+
+    def test_invalid_edit_format(self):
+        with GitTemporaryDirectory():
+            with patch("aider.io.InputOutput.offer_url") as mock_offer_url:
+                result = main(
+                    ["--edit-format", "not-a-real-format", "--exit", "--yes"],
+                    input=DummyInput(),
+                    output=DummyOutput(),
+                )
+                self.assertEqual(result, 1)  # main() should return 1 on error
+                mock_offer_url.assert_called_once()
+                args, _ = mock_offer_url.call_args
+                self.assertEqual(args[0], "https://aider.chat/docs/more/edit-formats.html")
+
     def test_chat_language_spanish(self):
         with GitTemporaryDirectory():
             coder = main(

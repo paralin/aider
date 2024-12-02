@@ -37,6 +37,15 @@ from ..dump import dump  # noqa: F401
 from .chat_chunks import ChatChunks
 
 
+class UnknownEditFormat(ValueError):
+    def __init__(self, edit_format, valid_formats):
+        self.edit_format = edit_format
+        self.valid_formats = valid_formats
+        super().__init__(
+            f"Unknown edit format {edit_format}. Valid formats are: {', '.join(valid_formats)}"
+        )
+
+
 class MissingAPIKeyError(ValueError):
     pass
 
@@ -91,6 +100,7 @@ class Coder:
     cache_warming_thread = None
     num_cache_warming_pings = 0
     suggest_shell_commands = True
+    detect_urls = True
     ignore_mentions = None
     chat_language = None
 
@@ -156,7 +166,12 @@ class Coder:
                 res.original_kwargs = dict(kwargs)
                 return res
 
-        raise ValueError(f"Unknown edit format {edit_format}")
+        valid_formats = [
+            str(c.edit_format)
+            for c in coders.__all__
+            if hasattr(c, "edit_format") and c.edit_format is not None
+        ]
+        raise UnknownEditFormat(edit_format, valid_formats)
 
     def clone(self, **kwargs):
         new_coder = Coder.create(from_coder=self, **kwargs)
@@ -267,6 +282,7 @@ class Coder:
         num_cache_warming_pings=0,
         suggest_shell_commands=True,
         chat_language=None,
+        detect_urls=True,
     ):
         # Fill in a dummy Analytics if needed, but it is never .enable()'d
         self.analytics = analytics if analytics is not None else Analytics()
@@ -280,6 +296,7 @@ class Coder:
         self.ignore_mentions = set()
 
         self.suggest_shell_commands = suggest_shell_commands
+        self.detect_urls = detect_urls
 
         self.num_cache_warming_pings = num_cache_warming_pings
 
@@ -648,6 +665,8 @@ class Coder:
 
     def get_readonly_files_messages(self):
         readonly_messages = []
+
+        # Handle non-image files
         read_only_content = self.get_read_only_files_content()
         if read_only_content:
             readonly_messages += [
@@ -659,6 +678,15 @@ class Coder:
                     content="Ok, I will use these files as references.",
                 ),
             ]
+
+        # Handle image files
+        images_message = self.get_images_message(self.abs_read_only_fnames)
+        if images_message is not None:
+            readonly_messages += [
+                images_message,
+                dict(role="assistant", content="Ok, I will use these images as references."),
+            ]
+
         return readonly_messages
 
     def get_chat_files_messages(self):
@@ -680,7 +708,7 @@ class Coder:
                 dict(role="assistant", content=files_reply),
             ]
 
-        images_message = self.get_images_message()
+        images_message = self.get_images_message(self.abs_fnames)
         if images_message is not None:
             chat_files_messages += [
                 images_message,
@@ -689,23 +717,42 @@ class Coder:
 
         return chat_files_messages
 
-    def get_images_message(self):
-        if not self.main_model.info.get("supports_vision"):
+    def get_images_message(self, fnames):
+        supports_images = self.main_model.info.get("supports_vision")
+        supports_pdfs = self.main_model.info.get("supports_pdf_input") or self.main_model.info.get(
+            "max_pdf_size_mb"
+        )
+
+        # https://github.com/BerriAI/litellm/pull/6928
+        supports_pdfs = supports_pdfs or "claude-3-5-sonnet-20241022" in self.main_model.name
+
+        if not (supports_images or supports_pdfs):
             return None
 
         image_messages = []
-        for fname, content in self.get_abs_fnames_content():
-            if is_image_file(fname):
-                with open(fname, "rb") as image_file:
-                    encoded_string = base64.b64encode(image_file.read()).decode("utf-8")
-                mime_type, _ = mimetypes.guess_type(fname)
-                if mime_type and mime_type.startswith("image/"):
-                    image_url = f"data:{mime_type};base64,{encoded_string}"
-                    rel_fname = self.get_rel_fname(fname)
-                    image_messages += [
-                        {"type": "text", "text": f"Image file: {rel_fname}"},
-                        {"type": "image_url", "image_url": {"url": image_url, "detail": "high"}},
-                    ]
+        for fname in fnames:
+            if not is_image_file(fname):
+                continue
+
+            mime_type, _ = mimetypes.guess_type(fname)
+            if not mime_type:
+                continue
+
+            with open(fname, "rb") as image_file:
+                encoded_string = base64.b64encode(image_file.read()).decode("utf-8")
+            image_url = f"data:{mime_type};base64,{encoded_string}"
+            rel_fname = self.get_rel_fname(fname)
+
+            if mime_type.startswith("image/") and supports_images:
+                image_messages += [
+                    {"type": "text", "text": f"Image file: {rel_fname}"},
+                    {"type": "image_url", "image_url": {"url": image_url, "detail": "high"}},
+                ]
+            elif mime_type == "application/pdf" and supports_pdfs:
+                image_messages += [
+                    {"type": "text", "text": f"PDF file: {rel_fname}"},
+                    {"type": "image_url", "image_url": image_url},
+                ]
 
         if not image_messages:
             return None
@@ -724,6 +771,7 @@ class Coder:
         self.lint_outcome = None
         self.test_outcome = None
         self.shell_commands = []
+        self.message_cost = 0
 
         if self.repo:
             self.commit_before_message.append(self.repo.get_head_commit_sha())
@@ -767,7 +815,7 @@ class Coder:
             return self.commands.run(inp)
 
         self.check_for_file_mentions(inp)
-        self.check_for_urls(inp)
+        inp = self.check_for_urls(inp)
 
         return inp
 
@@ -812,9 +860,11 @@ class Coder:
 
     def check_for_urls(self, inp: str) -> List[str]:
         """Check input for URLs and offer to add them to the chat."""
+        if not self.detect_urls:
+            return inp
+
         url_pattern = re.compile(r"(https?://[^\s/$.?#].[^\s]*[^\s,.])")
         urls = list(set(url_pattern.findall(inp)))  # Use set to remove duplicates
-        added_urls = []
         group = ConfirmGroup(urls)
         for url in urls:
             if url not in self.rejected_urls:
@@ -824,11 +874,10 @@ class Coder:
                 ):
                     inp += "\n\n"
                     inp += self.commands.cmd_web(url, return_content=True)
-                    added_urls.append(url)
                 else:
                     self.rejected_urls.add(url)
 
-        return added_urls
+        return inp
 
     def keyboard_interrupt(self):
         now = time.time()
@@ -836,6 +885,7 @@ class Coder:
         thresh = 2  # seconds
         if self.last_keyboard_interrupt and now - self.last_keyboard_interrupt < thresh:
             self.io.tool_warning("\n\n^C KeyboardInterrupt")
+            self.event("exit", reason="Control-C")
             sys.exit()
 
         self.io.tool_warning("\n\n^C again to exit")
@@ -1059,7 +1109,7 @@ class Coder:
         max_input_tokens = self.main_model.info.get("max_input_tokens") or 0
         # Add the reminder prompt if we still have room to include it.
         if (
-            max_input_tokens is None
+            not max_input_tokens
             or total_tokens < max_input_tokens
             and self.gpt_prompts.system_reminder
         ):
@@ -1137,6 +1187,8 @@ class Coder:
         return chunks
 
     def send_message(self, inp):
+        self.event("message_send_starting")
+
         self.cur_messages += [
             dict(role="user", content=inp),
         ]
@@ -1216,6 +1268,7 @@ class Coder:
                     lines = traceback.format_exception(type(err), err, err.__traceback__)
                     self.io.tool_warning("".join(lines))
                     self.io.tool_error(str(err))
+                    self.event("message_send_exception", exception=str(err))
                     return
         finally:
             if self.mdstream:
@@ -1350,9 +1403,7 @@ class Coder:
             res.append("- Ask for smaller changes in each request.")
             res.append("- Break your code into smaller source files.")
             if "diff" not in self.main_model.edit_format:
-                res.append(
-                    "- Use a stronger model like gpt-4o, sonnet or opus that can return diffs."
-                )
+                res.append("- Use a stronger model that can return diffs.")
 
         if input_tokens >= max_input_tokens or total_tokens >= max_input_tokens:
             res.append("")
@@ -1405,9 +1456,18 @@ class Coder:
 
         addable_rel_fnames = self.get_addable_relative_files()
 
+        # Get basenames of files already in chat or read-only
+        existing_basenames = {os.path.basename(f) for f in self.get_inchat_relative_files()} | {
+            os.path.basename(self.get_rel_fname(f)) for f in self.abs_read_only_fnames
+        }
+
         mentioned_rel_fnames = set()
         fname_to_rel_fnames = {}
         for rel_fname in addable_rel_fnames:
+            # Skip files that share a basename with files already in chat
+            if os.path.basename(rel_fname) in existing_basenames:
+                continue
+
             normalized_rel_fname = rel_fname.replace("\\", "/")
             normalized_words = set(word.replace("\\", "/") for word in words)
             if normalized_rel_fname in normalized_words:
@@ -2057,7 +2117,7 @@ class Coder:
             self.io.tool_output(f"Running {command}")
             # Add the command to input history
             self.io.add_to_input_history(f"/run {command.strip()}")
-            exit_status, output = run_cmd(command, error_print=self.io.tool_error)
+            exit_status, output = run_cmd(command, error_print=self.io.tool_error, cwd=self.root)
             if output:
                 accumulated_output += f"Output from {command}\n{output}\n"
 

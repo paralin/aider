@@ -32,9 +32,9 @@ usage: aider [-h] [--openai-api-key] [--anthropic-api-key] [--model]
              [--openai-api-type] [--openai-api-version]
              [--openai-api-deployment-id] [--openai-organization-id]
              [--model-settings-file] [--model-metadata-file]
-             [--verify-ssl | --no-verify-ssl] [--edit-format]
-             [--architect] [--weak-model] [--editor-model]
-             [--editor-edit-format]
+             [--alias] [--verify-ssl | --no-verify-ssl] [--timeout]
+             [--edit-format] [--architect] [--weak-model]
+             [--editor-model] [--editor-edit-format]
              [--show-model-warnings | --no-show-model-warnings]
              [--max-chat-history-tokens] [--env-file]
              [--cache-prompts | --no-cache-prompts]
@@ -59,9 +59,10 @@ usage: aider [-h] [--openai-api-key] [--anthropic-api-key] [--model]
              [--attribute-commit-message-author | --no-attribute-commit-message-author]
              [--attribute-commit-message-committer | --no-attribute-commit-message-committer]
              [--commit] [--commit-prompt] [--dry-run | --no-dry-run]
-             [--skip-sanity-check-repo] [--lint] [--lint-cmd]
-             [--auto-lint | --no-auto-lint] [--test-cmd]
-             [--auto-test | --no-auto-test] [--test]
+             [--skip-sanity-check-repo]
+             [--watch-files | --no-watch-files] [--lint]
+             [--lint-cmd] [--auto-lint | --no-auto-lint]
+             [--test-cmd] [--auto-test | --no-auto-test] [--test]
              [--analytics | --no-analytics] [--analytics-log]
              [--analytics-disable] [--file] [--read] [--vim]
              [--chat-language] [--version] [--just-check-update]
@@ -73,8 +74,10 @@ usage: aider [-h] [--openai-api-key] [--anthropic-api-key] [--model]
              [--message-file] [--load] [--encoding] [-c]
              [--gui | --no-gui | --browser | --no-browser]
              [--suggest-shell-commands | --no-suggest-shell-commands]
-             [--fancy-input | --no-fancy-input] [--editor]
+             [--fancy-input | --no-fancy-input]
+             [--detect-urls | --no-detect-urls] [--editor]
              [--voice-format] [--voice-language]
+             [--voice-input-device]
 
 ```
 
@@ -191,6 +194,10 @@ Specify a file with context window and costs for unknown models
 Default: .aider.model.metadata.json  
 Environment variable: `AIDER_MODEL_METADATA_FILE`  
 
+### `--alias ALIAS:MODEL`
+Add a model alias (can be used multiple times)  
+Environment variable: `AIDER_ALIAS`  
+
 ### `--verify-ssl`
 Verify the SSL cert when connecting to models (default: True)  
 Default: True  
@@ -198,6 +205,10 @@ Environment variable: `AIDER_VERIFY_SSL`
 Aliases:
   - `--verify-ssl`
   - `--no-verify-ssl`
+
+### `--timeout VALUE`
+Timeout in seconds for API calls (default: None)  
+Environment variable: `AIDER_TIMEOUT`  
 
 ### `--edit-format EDIT_FORMAT`
 Specify what edit format the LLM should use (default depends on model)  
@@ -470,6 +481,14 @@ Skip the sanity check for the git repository (default: False)
 Default: False  
 Environment variable: `AIDER_SKIP_SANITY_CHECK_REPO`  
 
+### `--watch-files`
+Enable/disable watching files for ai coding comments (default: False)  
+Default: False  
+Environment variable: `AIDER_WATCH_FILES`  
+Aliases:
+  - `--watch-files`
+  - `--no-watch-files`
+
 ## Fixing and committing:
 
 ### `--lint`
@@ -504,7 +523,7 @@ Aliases:
   - `--no-auto-test`
 
 ### `--test`
-Run tests and fix problems found  
+Run tests, fix problems found and then exit  
 Default: False  
 Environment variable: `AIDER_TEST`  
 
@@ -673,6 +692,14 @@ Aliases:
   - `--fancy-input`
   - `--no-fancy-input`
 
+### `--detect-urls`
+Enable/disable detection and offering to add URLs to chat (default: True)  
+Default: True  
+Environment variable: `AIDER_DETECT_URLS`  
+Aliases:
+  - `--detect-urls`
+  - `--no-detect-urls`
+
 ### `--editor VALUE`
 Specify which editor to use for the /editor command  
 Environment variable: `AIDER_EDITOR`  
@@ -688,4 +715,8 @@ Environment variable: `AIDER_VOICE_FORMAT`
 Specify the language for voice using ISO 639-1 code (default: auto)  
 Default: en  
 Environment variable: `AIDER_VOICE_LANGUAGE`  
+
+### `--voice-input-device VOICE_INPUT_DEVICE`
+Specify the input device name for voice recording  
+Environment variable: `AIDER_VOICE_INPUT_DEVICE`  
 <!--[[[end]]]-->

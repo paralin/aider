@@ -197,8 +197,10 @@ class InputOutput:
         llm_history_file=None,
         editingmode=EditingMode.EMACS,
         fancy_input=True,
+        file_watcher=None,
     ):
         self.placeholder = None
+        self.interrupted = False
         self.never_prompts = set()
         self.editingmode = editingmode
         no_color = os.environ.get("NO_COLOR")
@@ -260,6 +262,8 @@ class InputOutput:
                 self.tool_error(f"Can't initialize prompt toolkit: {err}")  # non-pretty
         else:
             self.console = Console(force_terminal=False, no_color=True)  # non-pretty
+
+        self.file_watcher = file_watcher
 
     def _get_style(self):
         style_dict = {}
@@ -373,6 +377,13 @@ class InputOutput:
         else:
             print()
 
+    def interrupt_input(self):
+        if self.prompt_session and self.prompt_session.app:
+            # Store any partial input before interrupting
+            self.placeholder = self.prompt_session.app.current_buffer.text
+            self.interrupted = True
+            self.prompt_session.app.exit()
+
     def get_input(
         self,
         root,
@@ -418,6 +429,16 @@ class InputOutput:
             "Ignore Ctrl when pressing space bar"
             event.current_buffer.insert_text(" ")
 
+        @kb.add("c-up")
+        def _(event):
+            "Navigate backward through history"
+            event.current_buffer.history_backward()
+
+        @kb.add("c-down")
+        def _(event):
+            "Navigate forward through history"
+            event.current_buffer.history_forward()
+
         @kb.add("escape", "c-m", eager=True)
         def _(event):
             event.current_buffer.insert_text("\n")
@@ -432,6 +453,10 @@ class InputOutput:
                     default = self.placeholder or ""
                     self.placeholder = None
 
+                    self.interrupted = False
+                    if not multiline_input and self.file_watcher:
+                        self.file_watcher.start()
+
                     line = self.prompt_session.prompt(
                         show,
                         default=default,
@@ -443,9 +468,26 @@ class InputOutput:
                     )
                 else:
                     line = input(show)
+
+                # Check if we were interrupted by a file change
+                if self.interrupted:
+                    cmd = self.file_watcher.process_changes()
+                    return cmd
+
+            except EOFError:
+                return ""
+            except Exception as err:
+                import traceback
+
+                self.tool_error(str(err))
+                self.tool_error(traceback.format_exc())
+                return ""
             except UnicodeEncodeError as err:
                 self.tool_error(str(err))
                 return ""
+            finally:
+                if self.file_watcher:
+                    self.file_watcher.stop()
 
             if line.strip("\r\n") and not multiline_input:
                 stripped = line.strip("\r\n")
@@ -492,10 +534,13 @@ class InputOutput:
     def add_to_input_history(self, inp):
         if not self.input_history_file:
             return
-        FileHistory(self.input_history_file).append_string(inp)
-        # Also add to the in-memory history if it exists
-        if self.prompt_session and self.prompt_session.history:
-            self.prompt_session.history.append_string(inp)
+        try:
+            FileHistory(self.input_history_file).append_string(inp)
+            # Also add to the in-memory history if it exists
+            if self.prompt_session and self.prompt_session.history:
+                self.prompt_session.history.append_string(inp)
+        except OSError as err:
+            self.tool_warning(f"Unable to write to input history file: {err}")
 
     def get_input_history(self):
         if not self.input_history_file:
