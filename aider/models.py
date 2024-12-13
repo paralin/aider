@@ -69,13 +69,14 @@ MODEL_ALIASES = {
     "opus": "claude-3-opus-20240229",
     # GPT models
     "4": "gpt-4-0613",
-    "4o": "gpt-4o-2024-08-06",
+    "4o": "gpt-4o",
     "4-turbo": "gpt-4-1106-preview",
     "35turbo": "gpt-3.5-turbo",
     "35-turbo": "gpt-3.5-turbo",
     "3": "gpt-3.5-turbo",
     # Other models
     "deepseek": "deepseek/deepseek-coder",
+    "flash": "gemini/gemini-2.0-flash-exp",
 }
 
 
@@ -584,6 +585,21 @@ MODEL_SETTINGS = [
         use_repo_map=True,
     ),
     ModelSettings(
+        "gemini/gemini-exp-1206",
+        "diff",
+        use_repo_map=True,
+    ),
+    ModelSettings(
+        "gemini/gemini-exp-1114",
+        "diff",
+        use_repo_map=True,
+    ),
+    ModelSettings(
+        "gemini/gemini-exp-1121",
+        "diff",
+        use_repo_map=True,
+    ),
+    ModelSettings(
         "vertex_ai/gemini-pro-experimental",
         "diff-fenced",
         use_repo_map=True,
@@ -592,6 +608,12 @@ MODEL_SETTINGS = [
         "gemini/gemini-1.5-flash-exp-0827",
         "whole",
         use_repo_map=False,
+        send_undo_reply=False,
+    ),
+    ModelSettings(
+        "gemini/gemini-2.0-flash-exp",
+        "diff",
+        use_repo_map=True,
         send_undo_reply=False,
     ),
     ModelSettings(

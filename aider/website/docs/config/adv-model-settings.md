@@ -46,13 +46,19 @@ The json file should be a dictionary with an entry for each model, as follows:
 }
 ```
 
-See 
-[litellm's model_prices_and_context_window.json file](https://github.com/BerriAI/litellm/blob/main/model_prices_and_context_window.json) for more examples.
-
 {: .tip }
 Use a fully qualified model name with a `provider/` at the front
 in the `.aider.model.metadata.json` file.
 For example, use `deepseek/deepseek-chat`, not just `deepseek-chat`.
+That prefix should match the `litellm_provider` field.
+
+### Contribute model metadata
+
+Aider relies on
+[litellm's model_prices_and_context_window.json file](https://github.com/BerriAI/litellm/blob/main/model_prices_and_context_window.json) 
+for model metadata.
+
+Consider submitting a PR to that file to add missing models.
 
 ## Model settings
 
@@ -979,6 +985,54 @@ cog.out("```\n")
   weak_model_name: null
 - cache_control: false
   caches_by_default: false
+  edit_format: diff
+  editor_edit_format: null
+  editor_model_name: null
+  examples_as_sys_msg: false
+  extra_params: null
+  lazy: false
+  name: gemini/gemini-exp-1206
+  reminder: user
+  send_undo_reply: false
+  streaming: true
+  use_repo_map: true
+  use_system_prompt: true
+  use_temperature: true
+  weak_model_name: null
+- cache_control: false
+  caches_by_default: false
+  edit_format: diff
+  editor_edit_format: null
+  editor_model_name: null
+  examples_as_sys_msg: false
+  extra_params: null
+  lazy: false
+  name: gemini/gemini-exp-1114
+  reminder: user
+  send_undo_reply: false
+  streaming: true
+  use_repo_map: true
+  use_system_prompt: true
+  use_temperature: true
+  weak_model_name: null
+- cache_control: false
+  caches_by_default: false
+  edit_format: diff
+  editor_edit_format: null
+  editor_model_name: null
+  examples_as_sys_msg: false
+  extra_params: null
+  lazy: false
+  name: gemini/gemini-exp-1121
+  reminder: user
+  send_undo_reply: false
+  streaming: true
+  use_repo_map: true
+  use_system_prompt: true
+  use_temperature: true
+  weak_model_name: null
+- cache_control: false
+  caches_by_default: false
   edit_format: diff-fenced
   editor_edit_format: null
   editor_model_name: null
@@ -1006,6 +1060,22 @@ cog.out("```\n")
   send_undo_reply: false
   streaming: true
   use_repo_map: false
+  use_system_prompt: true
+  use_temperature: true
+  weak_model_name: null
+- cache_control: false
+  caches_by_default: false
+  edit_format: diff
+  editor_edit_format: null
+  editor_model_name: null
+  examples_as_sys_msg: false
+  extra_params: null
+  lazy: false
+  name: gemini/gemini-2.0-flash-exp
+  reminder: user
+  send_undo_reply: false
+  streaming: true
+  use_repo_map: true
   use_system_prompt: true
   use_temperature: true
   weak_model_name: null

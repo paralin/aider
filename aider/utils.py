@@ -2,7 +2,6 @@ import itertools
 import os
 import platform
 import shlex
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -194,25 +193,9 @@ def split_chat_history_markdown(text, include_tool=False):
     return messages
 
 
-# Copied from pip, MIT license
-# https://github.com/pypa/pip/blob/b989e6ef04810bbd4033a3683020bd4ddcbdb627/src/pip/_internal/utils/entrypoints.py#L73
-def get_best_invocation_for_this_python() -> str:
-    """Try to figure out the best way to invoke the current Python."""
-    exe = sys.executable
-    exe_name = os.path.basename(exe)
-
-    # Try to use the basename, if it's the first executable.
-    found_executable = shutil.which(exe_name)
-    if found_executable and os.path.samefile(found_executable, exe):
-        return exe_name
-
-    # Use the full executable name, because we couldn't find something simpler.
-    return exe
-
-
 def get_pip_install(args):
     cmd = [
-        get_best_invocation_for_this_python(),
+        sys.executable,
         "-m",
         "pip",
         "install",
@@ -268,7 +251,8 @@ def run_install(cmd):
 
 
 class Spinner:
-    spinner_chars = itertools.cycle(["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"])
+    unicode_spinner = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+    ascii_spinner = ["|", "/", "-", "\\"]
 
     def __init__(self, text):
         self.text = text
@@ -276,6 +260,20 @@ class Spinner:
         self.last_update = 0
         self.visible = False
         self.is_tty = sys.stdout.isatty()
+        self.tested = False
+
+    def test_charset(self):
+        if self.tested:
+            return
+        self.tested = True
+        # Try unicode first, fall back to ascii if needed
+        try:
+            # Test if we can print unicode characters
+            print(self.unicode_spinner[0], end="", flush=True)
+            print("\r", end="", flush=True)
+            self.spinner_chars = itertools.cycle(self.unicode_spinner)
+        except UnicodeEncodeError:
+            self.spinner_chars = itertools.cycle(self.ascii_spinner)
 
     def step(self):
         if not self.is_tty:
@@ -293,6 +291,7 @@ class Spinner:
         if not self.visible:
             return
 
+        self.test_charset()
         print(f"\r{self.text} {next(self.spinner_chars)}\r{self.text} ", end="", flush=True)
 
     def end(self):
@@ -382,3 +381,15 @@ def printable_shell_command(cmd_list):
         return subprocess.list2cmdline(cmd_list)
     else:
         return shlex.join(cmd_list)
+
+
+def main():
+    spinner = Spinner("Running spinner...")
+    for _ in range(40):  # 40 steps * 0.25 seconds = 10 seconds
+        time.sleep(0.25)
+        spinner.step()
+    spinner.end()
+
+
+if __name__ == "__main__":
+    main()

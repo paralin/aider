@@ -1,5 +1,57 @@
 # Release history
 
+### Aider v0.69.0
+
+- [Watch files](https://aider.chat/docs/usage/watch.html) improvements:
+  - Use `# ... AI?` comments to trigger aider and ask questions about your code.
+  - Now watches *all* files, not just certain source files.
+  - Use `# AI comments`, `// AI comments`, or `-- AI comments` to give aider instructions in any text file.
+- Full support for Gemini Flash 2.0 Exp:
+  - `aider --model flash` or `aider --model gemini/gemini-2.0-flash-exp`
+- [New `--multiline` flag and `/multiline-mode` command](https://aider.chat/docs/usage/commands.html#entering-multi-line-chat-messages) makes ENTER a soft newline and META-ENTER send the message, by @miradnanali.
+- `/copy-context <instructions>` now takes optional "instructions" when [copying code context to the clipboard](https://aider.chat/docs/usage/copypaste.html#copy-aiders-code-context-to-your-clipboard-paste-into-the-web-ui).
+- Improved clipboard error handling with helpful requirements install info.
+- Ask 5% of users if they want to opt-in to analytics.
+- `/voice` now lets you edit the transcribed text before sending.
+- Disabled auto-complete in Y/N prompts.
+- Aider wrote 68% of the code in this release.
+
+### Aider v0.68.0
+
+- [Aider works with LLM web chat UIs](https://aider.chat/docs/usage/copypaste.html).
+  - New `--copy-paste` mode.
+  - New `/copy-context` command.
+- [Set API keys and other environment variables for all providers from command line or yaml conf file](https://aider.chat/docs/config/aider_conf.html#storing-llm-keys).
+  - New `--api-key provider=key` setting.
+  - New `--set-env VAR=value` setting.
+- Added bash and zsh support to `--watch-files`.
+- Better error messages when missing dependencies for Gemini and Bedrock models.
+- Control-D now properly exits the program.
+- Don't count token costs when API provider returns a hard error.
+- Bugfix so watch files works with files that don't have tree-sitter support.
+- Bugfix so o1 models can be used as weak model.
+- Updated shell command prompt.
+- Added docstrings for all Coders.
+- Reorganized command line arguments with improved help messages and grouping.
+- Use the exact `sys.python` for self-upgrades.
+- Added experimental Gemini models.
+- Aider wrote 71% of the code in this release.
+
+### Aider v0.67.0
+
+- [Use aider in your IDE or editor](https://aider.chat/docs/usage/watch.html).
+  - Run `aider --watch-files` and it will watch for instructions you add to your source files.
+  - One-liner `# ...` or `// ...` comments that start or end with "AI" are instructions to aider.
+  - When aider sees "AI!" it reads and follows all the instructions in AI comments.
+- Support for new Amazon Bedrock Nova models.
+- When `/run` or `/test` have non-zero exit codes, pre-fill "Fix that" into the next message prompt.
+- `/diff` now invokes `git diff` to use your preferred diff tool.
+- Added Ctrl-Z support for process suspension.
+- Spinner now falls back to ASCII art if fancy symbols throw unicode errors.
+- `--read` now expands `~` home dirs.
+- Enabled exception capture in analytics.
+- [Aider wrote 61% of the code in this release.](https://aider.chat/HISTORY.html)
+
 ### Aider v0.66.0
 
 - PDF support for Sonnet and Gemini models.

@@ -1,5 +1,6 @@
 import base64
 import os
+import signal
 import time
 import webbrowser
 from collections import defaultdict
@@ -11,8 +12,10 @@ from pathlib import Path
 from prompt_toolkit.completion import Completer, Completion, ThreadedCompleter
 from prompt_toolkit.cursor_shapes import ModalCursorShapeConfig
 from prompt_toolkit.enums import EditingMode
+from prompt_toolkit.filters import Condition, is_searching
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.keys import Keys
 from prompt_toolkit.lexers import PygmentsLexer
 from prompt_toolkit.shortcuts import CompleteStyle, PromptSession
 from prompt_toolkit.styles import Style
@@ -173,6 +176,7 @@ class AutoCompleter(Completer):
 class InputOutput:
     num_error_outputs = 0
     num_user_asks = 0
+    clipboard_watcher = None
 
     def __init__(
         self,
@@ -198,11 +202,13 @@ class InputOutput:
         editingmode=EditingMode.EMACS,
         fancy_input=True,
         file_watcher=None,
+        multiline_mode=False,
     ):
         self.placeholder = None
         self.interrupted = False
         self.never_prompts = set()
         self.editingmode = editingmode
+        self.multiline_mode = multiline_mode
         no_color = os.environ.get("NO_COLOR")
         if no_color is not None and no_color != "":
             pretty = False
@@ -318,7 +324,7 @@ class InputOutput:
             self.tool_error(f"{filename}: {e}")
             return
 
-    def read_text(self, filename):
+    def read_text(self, filename, silent=False):
         if is_image_file(filename):
             return self.read_image(filename)
 
@@ -326,17 +332,21 @@ class InputOutput:
             with open(str(filename), "r", encoding=self.encoding) as f:
                 return f.read()
         except OSError as err:
-            self.tool_error(f"{filename}: unable to read: {err}")
+            if not silent:
+                self.tool_error(f"{filename}: unable to read: {err}")
             return
         except FileNotFoundError:
-            self.tool_error(f"{filename}: file not found error")
+            if not silent:
+                self.tool_error(f"{filename}: file not found error")
             return
         except IsADirectoryError:
-            self.tool_error(f"{filename}: is a directory")
+            if not silent:
+                self.tool_error(f"{filename}: is a directory")
             return
         except UnicodeError as e:
-            self.tool_error(f"{filename}: {e}")
-            self.tool_error("Use --encoding to set the unicode encoding.")
+            if not silent:
+                self.tool_error(f"{filename}: {e}")
+                self.tool_error("Use --encoding to set the unicode encoding.")
             return
 
     def write_text(self, filename, content, max_retries=5, initial_delay=0.1):
@@ -404,6 +414,8 @@ class InputOutput:
             show = self.format_files_for_input(rel_fnames, rel_read_only_fnames)
         if edit_format:
             show += edit_format
+        if self.multiline_mode:
+            show += (" " if edit_format else "") + "multi"
         show += "> "
 
         inp = ""
@@ -422,7 +434,16 @@ class InputOutput:
             )
         )
 
+        def suspend_to_bg(event):
+            """Suspend currently running application."""
+            event.app.suspend_to_background()
+
         kb = KeyBindings()
+
+        @kb.add(Keys.ControlZ, filter=Condition(lambda: hasattr(signal, "SIGTSTP")))
+        def _(event):
+            "Suspend to background with ctrl-z"
+            suspend_to_bg(event)
 
         @kb.add("c-space")
         def _(event):
@@ -439,9 +460,25 @@ class InputOutput:
             "Navigate forward through history"
             event.current_buffer.history_forward()
 
-        @kb.add("escape", "c-m", eager=True)
+        @kb.add("enter", eager=True, filter=~is_searching)
         def _(event):
-            event.current_buffer.insert_text("\n")
+            "Handle Enter key press"
+            if self.multiline_mode:
+                # In multiline mode, Enter adds a newline
+                event.current_buffer.insert_text("\n")
+            else:
+                # In normal mode, Enter submits
+                event.current_buffer.validate_and_handle()
+
+        @kb.add("escape", "enter", eager=True, filter=~is_searching)  # This is Alt+Enter
+        def _(event):
+            "Handle Alt+Enter key press"
+            if self.multiline_mode:
+                # In multiline mode, Alt+Enter submits
+                event.current_buffer.validate_and_handle()
+            else:
+                # In normal mode, Alt+Enter adds a newline
+                event.current_buffer.insert_text("\n")
 
         while True:
             if multiline_input:
@@ -454,8 +491,11 @@ class InputOutput:
                     self.placeholder = None
 
                     self.interrupted = False
-                    if not multiline_input and self.file_watcher:
-                        self.file_watcher.start()
+                    if not multiline_input:
+                        if self.file_watcher:
+                            self.file_watcher.start()
+                        if self.clipboard_watcher:
+                            self.clipboard_watcher.start()
 
                     line = self.prompt_session.prompt(
                         show,
@@ -471,11 +511,13 @@ class InputOutput:
 
                 # Check if we were interrupted by a file change
                 if self.interrupted:
-                    cmd = self.file_watcher.process_changes()
-                    return cmd
+                    line = line or ""
+                    if self.file_watcher:
+                        cmd = self.file_watcher.process_changes()
+                        return cmd
 
             except EOFError:
-                return ""
+                raise
             except Exception as err:
                 import traceback
 
@@ -488,6 +530,8 @@ class InputOutput:
             finally:
                 if self.file_watcher:
                     self.file_watcher.stop()
+                if self.clipboard_watcher:
+                    self.clipboard_watcher.stop()
 
             if line.strip("\r\n") and not multiline_input:
                 stripped = line.strip("\r\n")
@@ -605,6 +649,9 @@ class InputOutput:
         group=None,
         allow_never=False,
     ):
+        # Temporarily disable multiline mode for yes/no prompts
+        orig_multiline = self.multiline_mode
+        self.multiline_mode = False
         self.num_user_asks += 1
 
         question_id = (question, subject)
@@ -662,6 +709,7 @@ class InputOutput:
                     res = self.prompt_session.prompt(
                         question,
                         style=style,
+                        complete_while_typing=False,
                     )
                 else:
                     res = input(question)
@@ -702,9 +750,15 @@ class InputOutput:
         hist = f"{question.strip()} {res}"
         self.append_chat_history(hist, linebreak=True, blockquote=True)
 
+        # Restore original multiline mode
+        self.multiline_mode = orig_multiline
+
         return is_yes
 
     def prompt_ask(self, question, default="", subject=None):
+        # Temporarily disable multiline mode for prompts
+        orig_multiline = self.multiline_mode
+        self.multiline_mode = False
         self.num_user_asks += 1
 
         if subject:
@@ -727,6 +781,9 @@ class InputOutput:
         self.append_chat_history(hist, linebreak=True, blockquote=True)
         if self.yes in (True, False):
             self.tool_output(hist)
+
+        # Restore original multiline mode
+        self.multiline_mode = orig_multiline
 
         return res
 
@@ -796,6 +853,18 @@ class InputOutput:
 
     def print(self, message=""):
         print(message)
+
+    def toggle_multiline_mode(self):
+        """Toggle between normal and multiline input modes"""
+        self.multiline_mode = not self.multiline_mode
+        if self.multiline_mode:
+            self.tool_output(
+                "Multiline mode: Enabled. Enter inserts newline, Alt-Enter submits text"
+            )
+        else:
+            self.tool_output(
+                "Multiline mode: Disabled. Alt-Enter inserts newline, Enter submits text"
+            )
 
     def append_chat_history(self, text, linebreak=False, blockquote=False, strip=True):
         if blockquote:

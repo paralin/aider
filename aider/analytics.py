@@ -5,7 +5,7 @@ import time
 import uuid
 from pathlib import Path
 
-from mixpanel import Mixpanel, MixpanelException
+from mixpanel import MixpanelException
 from posthog import Posthog
 
 from aider import __version__
@@ -50,8 +50,14 @@ class Analytics:
             self.disable(False)
             return
 
-        self.mp = Mixpanel(mixpanel_project_token)
-        self.ph = Posthog(project_api_key=posthog_project_api_key, host=posthog_host)
+        # self.mp = Mixpanel(mixpanel_project_token)
+        self.ph = Posthog(
+            project_api_key=posthog_project_api_key,
+            host=posthog_host,
+            on_error=self.posthog_error,
+            enable_exception_autocapture=True,
+            super_properties=self.get_system_info(),  # Add system info to all events
+        )
 
     def disable(self, permanently):
         self.mp = None
@@ -78,7 +84,7 @@ class Analytics:
         if not self.user_id:
             return False
 
-        PERCENT = 2.5
+        PERCENT = 5
         return self.is_uuid_in_percentage(self.user_id, PERCENT)
 
     def is_uuid_in_percentage(self, uuid_str, percent):
@@ -159,6 +165,7 @@ class Analytics:
             "os_platform": platform.system(),
             "os_release": platform.release(),
             "machine": platform.machine(),
+            "aider_version": __version__,
         }
 
     def _redact_model_name(self, model):
@@ -172,6 +179,13 @@ class Analytics:
             return model.name.split("/")[0] + "/REDACTED"
         return None
 
+    def posthog_error(self):
+        """disable posthog if we get an error"""
+        print("X" * 100)
+        # https://github.com/PostHog/posthog-python/blob/9e1bb8c58afaa229da24c4fb576c08bb88a75752/posthog/consumer.py#L86
+        # https://github.com/Aider-AI/aider/issues/2532
+        self.ph = None
+
     def event(self, event_name, main_model=None, **kwargs):
         if not self.mp and not self.ph and not self.logfile:
             return
@@ -184,7 +198,6 @@ class Analytics:
             properties["editor_model"] = self._redact_model_name(main_model.editor_model)
 
         properties.update(kwargs)
-        properties.update(self.get_system_info())  # Add system info to all events
 
         # Handle numeric values
         for key, value in properties.items():
@@ -192,8 +205,6 @@ class Analytics:
                 properties[key] = value
             else:
                 properties[key] = str(value)
-
-        properties["aider_version"] = __version__
 
         if self.mp:
             try:
@@ -211,6 +222,9 @@ class Analytics:
                 "user_id": self.user_id,
                 "time": int(time.time()),
             }
-            with open(self.logfile, "a") as f:
-                json.dump(log_entry, f)
-                f.write("\n")
+            try:
+                with open(self.logfile, "a") as f:
+                    json.dump(log_entry, f)
+                    f.write("\n")
+            except OSError:
+                pass  # Ignore OS errors when writing to logfile
