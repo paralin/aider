@@ -1,5 +1,18 @@
 # Release history
 
+### main branch
+
+- Full support for o1 models.
+- Ask 10% of users to opt-in to analytics.
+- Aider wrote 75% of the code in this release.
+
+### Aider v0.69.1
+
+- Fix for gemini model names in model metadata.
+- Show hints about AI! and AI? when user makes AI comments.
+- Support for running without git installed.
+- Improved environment variable setup messages on Windows.
+
 ### Aider v0.69.0
 
 - [Watch files](https://aider.chat/docs/usage/watch.html) improvements:
