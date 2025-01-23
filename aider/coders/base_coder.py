@@ -216,11 +216,6 @@ class Coder:
             num_files = len(self.repo.get_tracked_files())
 
             lines.append(f"Git repo: {rel_repo_dir} with {num_files:,} files")
-            if num_files > 1000:
-                lines.append(
-                    "Warning: For large repos, consider using --subtree-only and .aiderignore"
-                )
-                lines.append(f"See: {urls.large_repos}")
         else:
             lines.append("Git repo: none")
 

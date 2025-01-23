@@ -2,7 +2,6 @@
 
 from .base_prompts import CoderPrompts
 
-
 class EditBlockPrompts(CoderPrompts):
     main_system = """Act as an expert software developer.
 Study the change request and the current code.
