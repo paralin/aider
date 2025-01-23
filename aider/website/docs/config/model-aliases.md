@@ -55,10 +55,11 @@ for alias, model in sorted(MODEL_ALIASES.items()):
 - `4`: gpt-4-0613
 - `4-turbo`: gpt-4-1106-preview
 - `4o`: gpt-4o
-- `deepseek`: deepseek/deepseek-coder
+- `deepseek`: deepseek/deepseek-chat
 - `flash`: gemini/gemini-2.0-flash-exp
 - `haiku`: claude-3-5-haiku-20241022
 - `opus`: claude-3-opus-20240229
+- `r1`: deepseek/deepseek-reasoner
 - `sonnet`: claude-3-5-sonnet-20241022
 <!--[[[end]]]-->
 

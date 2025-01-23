@@ -52,6 +52,8 @@ class Commands:
         io,
         coder,
         voice_language=None,
+        voice_input_device=None,
+        voice_format=None,
         verify_ssl=True,
         args=None,
         parser=None,
@@ -69,6 +71,8 @@ class Commands:
             voice_language = None
 
         self.voice_language = voice_language
+        self.voice_format = voice_format
+        self.voice_input_device = voice_input_device
 
         self.help = None
         self.editor = editor
@@ -914,10 +918,14 @@ class Commands:
         if combined_output is None:
             return
 
+        # Calculate token count of output
+        token_count = self.coder.main_model.token_count(combined_output)
+        k_tokens = token_count / 1000
+
         if add_on_nonzero_exit:
             add = exit_status != 0
         else:
-            add = self.io.confirm_ask("Add command output to the chat?")
+            add = self.io.confirm_ask(f"Add {k_tokens:.1f}k tokens of command output to the chat?")
 
         if add:
             num_lines = len(combined_output.strip().splitlines())
@@ -935,7 +943,7 @@ class Commands:
             ]
 
             if add and exit_status != 0:
-                self.io.placeholder = "Fix that"
+                self.io.placeholder = "What's wrong? Fix"
 
     def cmd_exit(self, args):
         "Exit the application"
@@ -1009,7 +1017,7 @@ class Commands:
             return
 
         self.coder.event("interactive help")
-        from aider.coders import Coder
+        from aider.coders.base_coder import Coder
 
         if not self.help:
             res = install_help_extra(self.io)
@@ -1053,23 +1061,23 @@ class Commands:
         )
 
     def cmd_ask(self, args):
-        "Ask questions about the code base without editing any files"
+        """Ask questions about the code base without editing any files. If no prompt provided, switches to ask mode."""  # noqa
         return self._generic_chat_command(args, "ask")
 
     def cmd_code(self, args):
-        "Ask for changes to your code"
+        """Ask for changes to your code. If no prompt provided, switches to code mode."""  # noqa
         return self._generic_chat_command(args, self.coder.main_model.edit_format)
 
     def cmd_architect(self, args):
-        "Enter architect mode to discuss high-level design and architecture"
+        """Enter architect/editor mode using 2 different models. If no prompt provided, switches to architect/editor mode."""  # noqa
         return self._generic_chat_command(args, "architect")
 
     def _generic_chat_command(self, args, edit_format):
         if not args.strip():
-            self.io.tool_error(f"Please provide a question or topic for the {edit_format} chat.")
-            return
+            # Switch to the corresponding chat mode if no args provided
+            return self.cmd_chat_mode(edit_format)
 
-        from aider.coders import Coder
+        from aider.coders.base_coder import Coder
 
         coder = Coder.create(
             io=self.io,
@@ -1117,7 +1125,7 @@ class Commands:
                 return
             try:
                 self.voice = voice.Voice(
-                    audio_format=self.args.voice_format, device_name=self.args.voice_input_device
+                    audio_format=self.voice_format or "wav", device_name=self.voice_input_device
                 )
             except voice.SoundDeviceError:
                 self.io.tool_error(
@@ -1309,7 +1317,12 @@ class Commands:
                 continue
 
             self.io.tool_output(f"\nExecuting: {cmd}")
-            self.run(cmd)
+            try:
+                self.run(cmd)
+            except SwitchCoder:
+                self.io.tool_error(
+                    f"Command '{cmd}' is only supported in interactive mode, skipping."
+                )
 
     def completions_raw_save(self, document, complete_event):
         return self.completions_raw_read_only(document, complete_event)

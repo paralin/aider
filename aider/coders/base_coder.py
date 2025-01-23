@@ -59,7 +59,8 @@ def wrap_fence(name):
 
 
 all_fences = [
-    ("``" + "`", "``" + "`"),
+    ("`" * 3, "`" * 3),
+    ("`" * 4, "`" * 4),
     wrap_fence("source"),
     wrap_fence("code"),
     wrap_fence("pre"),
@@ -225,10 +226,10 @@ class Coder:
             if map_tokens > 0:
                 refresh = self.repo_map.refresh
                 lines.append(f"Repo-map: using {map_tokens} tokens, {refresh} refresh")
-                max_map_tokens = 2048
+                max_map_tokens = self.main_model.get_repo_map_tokens() * 2
                 if map_tokens > max_map_tokens:
                     lines.append(
-                        f"Warning: map-tokens > {max_map_tokens} is not recommended as too much"
+                        f"Warning: map-tokens > {max_map_tokens} is not recommended. Too much"
                         " irrelevant code can confuse LLMs."
                     )
             else:
@@ -239,6 +240,10 @@ class Coder:
         # Files
         for fname in self.get_inchat_relative_files():
             lines.append(f"Added {fname} to the chat.")
+
+        for fname in self.abs_read_only_fnames:
+            rel_fname = self.get_rel_fname(fname)
+            lines.append(f"Added {rel_fname} to the chat (read-only).")
 
         if self.done_messages:
             lines.append("Restored previous conversation history.")
@@ -343,7 +348,6 @@ class Coder:
             self.done_messages = []
 
         self.io = io
-        self.stream = stream
 
         self.shell_commands = []
 
@@ -357,6 +361,8 @@ class Coder:
         self.pretty = self.io.pretty
 
         self.main_model = main_model
+
+        self.stream = stream and main_model.streaming
 
         if cache_prompts and self.main_model.cache_control:
             self.add_cache_headers = True
@@ -448,6 +454,7 @@ class Coder:
 
         self.summarizer_thread = None
         self.summarized_done_messages = []
+        self.summarizing_messages = None
 
         if not self.done_messages and restore_chat_history:
             history_md = self.io.read_text(self.io.chat_history_file)
@@ -514,7 +521,7 @@ class Coder:
             return False
 
         # only show pretty output if fences are the normal triple-backtick
-        if self.fence != self.fences[0]:
+        if self.fence[0][0] != "`":
             return False
 
         return True
@@ -608,9 +615,19 @@ class Coder:
     def get_ident_filename_matches(self, idents):
         all_fnames = defaultdict(set)
         for fname in self.get_all_relative_files():
-            base = Path(fname).with_suffix("").name.lower()
-            if len(base) >= 5:
-                all_fnames[base].add(fname)
+            # Skip empty paths or just '.'
+            if not fname or fname == ".":
+                continue
+
+            try:
+                # Handle dotfiles properly
+                path = Path(fname)
+                base = path.stem.lower()  # Use stem instead of with_suffix("").name
+                if len(base) >= 5:
+                    all_fnames[base].add(fname)
+            except ValueError:
+                # Skip paths that can't be processed
+                continue
 
         matches = set()
         for ident in idents:
@@ -921,8 +938,9 @@ class Coder:
         self.summarizer_thread.start()
 
     def summarize_worker(self):
+        self.summarizing_messages = list(self.done_messages)
         try:
-            self.summarized_done_messages = self.summarizer.summarize(self.done_messages)
+            self.summarized_done_messages = self.summarizer.summarize(self.summarizing_messages)
         except ValueError as err:
             self.io.tool_warning(err.args[0])
 
@@ -936,7 +954,9 @@ class Coder:
         self.summarizer_thread.join()
         self.summarizer_thread = None
 
-        self.done_messages = self.summarized_done_messages
+        if self.summarizing_messages == self.done_messages:
+            self.done_messages = self.summarized_done_messages
+        self.summarizing_messages = None
         self.summarized_done_messages = []
 
     def move_back_cur_messages(self, message):
@@ -1301,7 +1321,17 @@ class Coder:
 
         self.show_usage_report()
 
+        self.add_assistant_reply_to_cur_messages()
+
         if exhausted:
+            if self.cur_messages and self.cur_messages[-1]["role"] == "user":
+                self.cur_messages += [
+                    dict(
+                        role="assistant",
+                        content="FinishReasonLength exception: you sent too many tokens",
+                    ),
+                ]
+
             self.show_exhausted_error()
             self.num_exhausted_context_windows += 1
             return
@@ -1332,13 +1362,13 @@ class Coder:
                 interrupted = True
 
         if interrupted:
-            content += "\n^C KeyboardInterrupt"
-            self.cur_messages += [dict(role="assistant", content=content)]
+            self.cur_messages += [
+                dict(role="user", content="^C KeyboardInterrupt"),
+                dict(role="assistant", content="I see that you interrupted my previous reply."),
+            ]
             return
 
         edited = self.apply_updates()
-
-        self.update_cur_messages()
 
         if edited:
             self.aider_edited_files.update(edited)
@@ -1360,7 +1390,6 @@ class Coder:
                 ok = self.io.confirm_ask("Attempt to fix lint errors?")
                 if ok:
                     self.reflected_message = lint_errors
-                    self.update_cur_messages()
                     return
 
         shared_output = self.run_shell_commands()
@@ -1377,7 +1406,6 @@ class Coder:
                 ok = self.io.confirm_ask("Attempt to fix test errors?")
                 if ok:
                     self.reflected_message = test_errors
-                    self.update_cur_messages()
                     return
 
     def reply_completed(self):
@@ -1453,7 +1481,7 @@ class Coder:
 
         return res
 
-    def update_cur_messages(self):
+    def add_assistant_reply_to_cur_messages(self):
         if self.partial_response_content:
             self.cur_messages += [dict(role="assistant", content=self.partial_response_content)]
         if self.partial_response_function_call:

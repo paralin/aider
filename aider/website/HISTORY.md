@@ -23,11 +23,67 @@ cog.out(text)
 ]]]-->
 
 
-### main branch
+### Aider v0.72.2
+
+- Harden against user/assistant turn order problems which cause R1 errors.
+- Added environment variable AIDER_SANITY_CHECK_TURNS for turn order validation.
+
+### Aider v0.72.1
+- Fix model metadata for `openrouter/deepseek/deepseek-r1`
+
+### Aider v0.72.0
+- Support for DeepSeek R1.
+  - Use shortcut: `--model r1`
+  - Also via OpenRouter: `--model openrouter/deepseek/deepseek-r1`
+- Added Kotlin syntax support to repo map, by Paul Walker.
+- Added `--line-endings` for file writing, by Titusz Pan.
+- Added examples_as_sys_msg=True for GPT-4o models, improves benchmark scores.
+- Bumped all dependencies, to pick up litellm support for o1 system messages.
+- Bugfix for turn taking when reflecting lint/test errors.
+- Aider wrote 52% of the code in this release.
+
+### Aider v0.71.1
+
+- Fix permissions issue in Docker images.
+- Added read-only file announcements.
+- Bugfix: ASCII fallback for unicode errors.
+- Bugfix: integer indices for list slicing in repomap calculations.
+
+### Aider v0.71.0
+
+- Prompts to help DeepSeek work better when alternating between `/ask` and `/code`.
+- Streaming pretty LLM responses is smoother and faster for long replies.
+- Streaming automatically turns of for model that don't support it
+  - Can now switch to/from `/model o1` and a streaming model
+- Pretty output remains enabled even when editing files with triple-backtick fences
+- Bare `/ask`, `/code` and `/architect` commands now switch the chat mode.
+- Increased default size of the repomap.
+- Increased max chat history tokens limit from 4k to 8k.
+- Turn off fancy input and watch files if terminal is dumb.
+- Added support for custom voice format and input device settings.
+- Disabled Streamlit email prompt, by apaz-cli.
+- Docker container runs as non-root user.
+- Fixed lint command handling of nested spaced strings, by Aaron Weisberg.
+- Added token count feedback when adding command output to chat.
+- Improved error handling for large audio files with automatic format conversion.
+- Improved handling of git repo index errors, by Krazer.
+- Improved unicode handling in console output with ASCII fallback.
+- Added AssertionError, AttributeError to git error handling.
+- Aider wrote 60% of the code in this release.
+
+### Aider v0.70.0
 
 - Full support for o1 models.
+- Watch files now honors `--subtree-only`, and only watches that subtree.
+- Improved prompting for watch files, to work more reliably with more models.
+- New install methods via uv, including one-liners.
+- Support for openrouter/deepseek/deepseek-chat model.
+- Better error handling when interactive commands are attempted via `/load` or `--load`.
+- Display read-only files with abs path if its shorter than rel path.
 - Ask 10% of users to opt-in to analytics.
-- Aider wrote 75% of the code in this release.
+- Bugfix for auto-suggest.
+- Gracefully handle unicode errors in git path names.
+- Aider wrote 74% of the code in this release.
 
 ### Aider v0.69.1
 

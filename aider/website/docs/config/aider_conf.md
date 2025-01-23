@@ -7,13 +7,15 @@ description: How to configure aider with a yaml config file.
 # YAML config file
 
 Most of aider's options can be set in an `.aider.conf.yml` file.
-Aider will look for a this file in these locations and
-load whichever is found first.
+Aider will look for a this file in these locations:
 
-- As specified with the `--config <filename>` parameter.
-- The current directory.
-- The root of your git repo.
 - Your home directory.
+- The root of your git repo.
+- The current directory.
+
+If the files above exist, they will be loaded in that order. Files loaded last will take priority.
+
+You can also specify the `--config <filename>` parameter, which will only load the one config file.
 
 {% include keys.md %}
 
@@ -96,7 +98,7 @@ cog.outl("```")
 ## Use gpt-3.5-turbo model for the main chat
 #35turbo: false
 
-## Use deepseek/deepseek-coder model for the main chat
+## Use deepseek/deepseek-chat model for the main chat
 #deepseek: false
 
 ## Use o1-mini model for the main chat
@@ -204,7 +206,7 @@ cog.outl("```")
 ###################
 # Repomap settings:
 
-## Suggested number of tokens to use for repo map, use 0 to disable (default: 1024)
+## Suggested number of tokens to use for repo map, use 0 to disable
 #map-tokens: xxx
 
 ## Control how often the repo map is refreshed. Options: auto, always, files, manual (default: auto)
@@ -461,6 +463,9 @@ cog.outl("```")
 
 ## Specify the encoding for input and output (default: utf-8)
 #encoding: utf-8
+
+## Line endings to use when writing files (default: platform)
+#line-endings: platform
 
 ## Specify the config file (default: search for .aider.conf.yml in git root, cwd or home directory)
 #config: xxx
