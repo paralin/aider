@@ -130,20 +130,21 @@ def send_completion(
 def simple_send_with_retries(model, messages):
     litellm_ex = LiteLLMExceptions()
 
-    if "deepseek-reasoner" in model.name:
+    if "deepseek-reasoner" in model.name or "deepseek-r1" in model.name:
         messages = ensure_alternating_roles(messages)
 
     retry_delay = 0.125
     while True:
         try:
-            kwargs = {
-                "model_name": model.name,
-                "messages": messages,
-                "functions": None,
-                "stream": False,
-                "temperature": None if not model.use_temperature else 0,
-                "extra_params": model.extra_params,
-            }
+            temperature = model.temperature if model.use_temperature else None
+            kwargs = dict(
+                model_name=model.name,
+                messages=messages,
+                functions=None,
+                stream=False,
+                temperature=0 if temperature is None and model.use_temperature else temperature,
+                extra_params=model.extra_params,
+            )
 
             _hash, response = send_completion(**kwargs)
             if not response or not hasattr(response, "choices") or not response.choices:

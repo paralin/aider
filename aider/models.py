@@ -97,6 +97,7 @@ class ModelSettings:
     caches_by_default: bool = False
     use_system_prompt: bool = True
     use_temperature: bool = True
+    temperature: int | None = 0
     streaming: bool = True
     editor_model_name: Optional[str] = None
     editor_edit_format: Optional[str] = None
