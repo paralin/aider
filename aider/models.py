@@ -776,6 +776,17 @@ MODEL_SETTINGS = [
         use_temperature=False,
     ),
     ModelSettings(
+        "azure/o1",
+        "diff",
+        weak_model_name="azure/gpt-4o-mini",
+        editor_model_name="azure/gpt-4o",
+        editor_edit_format="editor-diff",
+        use_repo_map=True,
+        streaming=False,
+        use_temperature=False,
+        # extra_params=dict(extra_body=dict(reasoning_effort="high")),
+    ),
+    ModelSettings(
         "o1-preview",
         "architect",
         weak_model_name="gpt-4o-mini",
@@ -1397,16 +1408,28 @@ def print_matching_models(io, search):
 
 
 def get_model_settings_as_yaml():
+    from dataclasses import fields
+
     import yaml
 
     model_settings_list = []
     for ms in MODEL_SETTINGS:
-        model_settings_dict = {
-            field.name: getattr(ms, field.name) for field in fields(ModelSettings)
-        }
+        # Create dict with explicit field order
+        model_settings_dict = {}
+        for field in fields(ModelSettings):
+            model_settings_dict[field.name] = getattr(ms, field.name)
         model_settings_list.append(model_settings_dict)
+        # Add blank line between entries
+        model_settings_list.append(None)
 
-    return yaml.dump(model_settings_list, default_flow_style=False)
+    # Filter out None values before dumping
+    yaml_str = yaml.dump(
+        [ms for ms in model_settings_list if ms is not None],
+        default_flow_style=False,
+        sort_keys=False,  # Preserve field order from dataclass
+    )
+    # Add actual blank lines between entries
+    return yaml_str.replace("\n- ", "\n\n- ")
 
 
 def main():
