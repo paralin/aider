@@ -216,7 +216,7 @@ def get_parser(default_config_files, git_root):
     )
     group.add_argument(
         "--timeout",
-        type=int,
+        type=float,
         default=None,
         help="Timeout in seconds for API calls (default: None)",
     )
@@ -822,6 +822,12 @@ def get_parser(default_config_files, git_root):
     group.add_argument(
         "--editor",
         help="Specify which editor to use for the /editor command",
+    )
+    group.add_argument(
+        "--install-tree-sitter-language-pack",
+        action="store_true",
+        help="Install the tree_sitter_language_pack (experimental)",
+        default=False,
     )
 
     return parser
