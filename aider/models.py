@@ -76,7 +76,7 @@ ANTHROPIC_MODELS = [ln.strip() for ln in ANTHROPIC_MODELS.splitlines() if ln.str
 # Mapping of model aliases to their canonical names
 MODEL_ALIASES = {
     # Claude models
-    "sonnet": "claude-3-5-sonnet-20241022",
+    "sonnet": "claude-3-7-sonnet-20250219",
     "haiku": "claude-3-5-haiku-20241022",
     "opus": "claude-3-opus-20240229",
     # GPT models
@@ -357,7 +357,7 @@ class Model(ModelSettings):
             self.reminder = "sys"
             return  # <--
 
-        if "3.5-sonnet" in model or "3-5-sonnet" in model:
+        if "3.5-sonnet" in model or "3-5-sonnet" in model or "3-7-sonnet" in model or "3.7-sonnet" in model:
             self.edit_format = "diff"
             self.use_repo_map = True
             self.examples_as_sys_msg = True
