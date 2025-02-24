@@ -1043,6 +1043,7 @@ class Coder:
 
     def fmt_system_prompt(self, prompt):
         lazy_prompt = self.gpt_prompts.lazy_prompt if self.main_model.lazy else ""
+        common_rules = self.gpt_prompts.common_rules
         platform_text = self.get_platform_info()
 
         if self.suggest_shell_commands:
@@ -1070,6 +1071,7 @@ class Coder:
             fence=self.fence,
             quad_backtick_reminder=quad_backtick_reminder,
             lazy_prompt=lazy_prompt,
+            common_rules=common_rules,
             platform=platform_text,
             shell_cmd_prompt=shell_cmd_prompt,
             shell_cmd_reminder=shell_cmd_reminder,
