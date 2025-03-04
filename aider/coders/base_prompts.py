@@ -17,7 +17,7 @@ class CoderPrompts:
 - When adding new dependencies try to use well-known modern libraries.
 - Always use .js suffixes when importing typescript files, even if the file is a .ts file.
 - When writing Go tests never use testing libraries like stretchr. Use native Go tests.
-- When using Go protobufs always use getter functions, for example for "string my_field = 1;" use msg.GetMyField() instead of msg.MyField.
+- When accessing fields on protobufs in Go always use the getter functions, for example for "string my_field = 1;" has msg.GetMyField() instead of msg.MyField.
 - When using Go protobufs always assume that getter functions have nil checks within, for example "MyMessage(nil).GetMyField()" will not panic.
 - When using Go protobufs never check if a message is nil (for example, "if msg == nil") because nil messages are equivalent to empty messages.
 - Be careful to logically order function and type definitions in a file.
@@ -34,6 +34,7 @@ class CoderPrompts:
 - Always keep type assertions below any structs or functions related to the struct that is being type-asserted.
 - Always write deterministic code when possible which usually means avoiding iterating over Go maps which have undefined order.
 - Always use the cn helper function to merge className instead of string interpolation.
+- Always be careful to group variables together following existing patterns however possible.
 - Unless otherwise specified, typescript tests are using vitest and happy-dom."""
 
     system_reminder = ""
