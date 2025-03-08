@@ -35,7 +35,9 @@ class CoderPrompts:
 - Always write deterministic code when possible which usually means avoiding iterating over Go maps which have undefined order.
 - Always use the cn helper function to merge className instead of string interpolation.
 - Always be careful to group variables together following existing patterns however possible.
-- Unless otherwise specified, typescript tests are using vitest and happy-dom."""
+- Unless otherwise specified, typescript tests are using vitest and happy-dom.
+
+Be very careful to sastisfy the above requirements and the users request. Do what the user asked for and nothing more. If you can think of things that should be done beyond the scope of what the user requested, you may mention these improvements to the user at the end of your message as a suggestion for next steps."""
 
     system_reminder = ""
 
