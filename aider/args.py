@@ -54,6 +54,14 @@ def get_parser(default_config_files, git_root):
         const=sonnet_model,
         help=f"Use {sonnet_model} model for the main chat",
     )
+    sonnet_3_5_model = "anthropic/claude-3-5-sonnet-20241022"
+    group.add_argument(
+        "--sonnet-3-5",
+        action="store_const",
+        dest="model",
+        const=sonnet_3_5_model,
+        help=f"Use {sonnet_3_5_model} model for the main chat",
+    )
     haiku_model = "claude-3-5-haiku-20241022"
     group.add_argument(
         "--haiku",
