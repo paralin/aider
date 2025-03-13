@@ -154,7 +154,11 @@ class ModelInfoManager:
             if self.cache_file.exists():
                 cache_age = time.time() - self.cache_file.stat().st_mtime
                 if cache_age < self.CACHE_TTL:
-                    self.content = json.loads(self.cache_file.read_text())
+                    try:
+                        self.content = json.loads(self.cache_file.read_text())
+                    except json.JSONDecodeError:
+                        # If the cache file is corrupted, treat it as missing
+                        self.content = None
         except OSError:
             pass
 
@@ -227,11 +231,14 @@ model_info_manager = ModelInfoManager()
 
 
 class Model(ModelSettings):
-    def __init__(self, model, weak_model=None, editor_model=None, editor_edit_format=None):
+    def __init__(
+        self, model, weak_model=None, editor_model=None, editor_edit_format=None, verbose=False
+    ):
         # Map any alias to its canonical name
         model = MODEL_ALIASES.get(model, model)
 
         self.name = model
+        self.verbose = verbose
 
         self.max_chat_history_tokens = 1024
         self.weak_model = None
@@ -599,13 +606,81 @@ class Model(ModelSettings):
                 self.extra_params["extra_body"] = {}
             self.extra_params["extra_body"]["reasoning_effort"] = effort
 
-    def set_thinking_tokens(self, num):
-        """Set the thinking token budget for models that support it"""
-        if num is not None:
+    def parse_token_value(self, value):
+        """
+        Parse a token value string into an integer.
+        Accepts formats: 8096, "8k", "10.5k", "0.5M", "10K", etc.
+
+        Args:
+            value: String or int token value
+
+        Returns:
+            Integer token value
+        """
+        if isinstance(value, int):
+            return value
+
+        if not isinstance(value, str):
+            return int(value)  # Try to convert to int
+
+        value = value.strip().upper()
+
+        if value.endswith("K"):
+            multiplier = 1024
+            value = value[:-1]
+        elif value.endswith("M"):
+            multiplier = 1024 * 1024
+            value = value[:-1]
+        else:
+            multiplier = 1
+
+        # Convert to float first to handle decimal values like "10.5k"
+        return int(float(value) * multiplier)
+
+    def set_thinking_tokens(self, value):
+        """
+        Set the thinking token budget for models that support it.
+        Accepts formats: 8096, "8k", "10.5k", "0.5M", "10K", etc.
+        """
+        if value is not None:
+            num_tokens = self.parse_token_value(value)
             self.use_temperature = False
             if not self.extra_params:
                 self.extra_params = {}
-            self.extra_params["thinking"] = {"type": "enabled", "budget_tokens": num}
+            self.extra_params["thinking"] = {"type": "enabled", "budget_tokens": num_tokens}
+
+    def get_thinking_tokens(self, model):
+        """Get formatted thinking token budget if available"""
+        if (
+            model.extra_params
+            and "thinking" in model.extra_params
+            and "budget_tokens" in model.extra_params["thinking"]
+        ):
+            budget = model.extra_params["thinking"]["budget_tokens"]
+            # Format as xx.yK for thousands, xx.yM for millions
+            if budget >= 1024 * 1024:
+                value = budget / (1024 * 1024)
+                if value == int(value):
+                    return f"{int(value)}M"
+                else:
+                    return f"{value:.1f}M"
+            else:
+                value = budget / 1024
+                if value == int(value):
+                    return f"{int(value)}k"
+                else:
+                    return f"{value:.1f}k"
+        return None
+
+    def get_reasoning_effort(self, model):
+        """Get reasoning effort value if available"""
+        if (
+            model.extra_params
+            and "extra_body" in model.extra_params
+            and "reasoning_effort" in model.extra_params["extra_body"]
+        ):
+            return model.extra_params["extra_body"]["reasoning_effort"]
+        return None
 
     def is_deepseek_r1(self):
         name = self.name.lower()
@@ -654,6 +729,8 @@ class Model(ModelSettings):
         hash_object = hashlib.sha1(key)
         if "timeout" not in kwargs:
             kwargs["timeout"] = request_timeout
+        if self.verbose:
+            dump(kwargs)
         res = litellm.completion(**kwargs)
         return hash_object, res
 

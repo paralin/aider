@@ -126,8 +126,15 @@ def setup_git(git_root, io):
     if not repo:
         return
 
-    user_name = repo.git.config("--default", "", "--get", "user.name") or None
-    user_email = repo.git.config("--default", "", "--get", "user.email") or None
+    try:
+        user_name = repo.git.config("--get", "user.name") or None
+    except git.exc.GitCommandError:
+        user_name = None
+
+    try:
+        user_email = repo.git.config("--get", "user.email") or None
+    except git.exc.GitCommandError:
+        user_email = None
 
     if user_name and user_email:
         return repo.working_tree_dir
@@ -771,6 +778,7 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
         weak_model=args.weak_model,
         editor_model=args.editor_model,
         editor_edit_format=args.editor_edit_format,
+        verbose=args.verbose,
     )
 
     # Check if deprecated remove_reasoning is set
@@ -859,6 +867,7 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
         parser=parser,
         verbose=args.verbose,
         editor=args.editor,
+        original_read_only_fnames=read_only_fnames,
     )
 
     summarizer = ChatSummary(
@@ -913,6 +922,7 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
             chat_language=args.chat_language,
             detect_urls=args.detect_urls,
             auto_copy_context=args.copy_paste,
+            auto_accept_architect=args.auto_accept_architect,
         )
     except UnknownEditFormat as err:
         io.tool_error(str(err))

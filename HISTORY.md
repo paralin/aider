@@ -1,5 +1,28 @@
 # Release history
 
+### Aider v0.77.0
+
+- Big upgrade in [programming languages supported](https://aider.chat/docs/languages.html) by adopting [tree-sitter-language-pack](https://github.com/Goldziher/tree-sitter-language-pack/).
+  - 130 new languages with linter support.
+  - 20 new languages with repo-map support.
+- Added `/think-tokens` command to set thinking token budget with support for human-readable formats (8k, 10.5k, 0.5M).
+- Added `/reasoning-effort` command to control model reasoning level.
+- The `/think-tokens` and `/reasoning-effort` commands display current settings when called without arguments.
+- Display of thinking token budget and reasoning effort in model information.
+- Changed `--thinking-tokens` argument to accept string values with human-readable formats.
+- Added `--auto-accept-architect` flag (default: true) to automatically accept changes from architect coder format without confirmation.
+- Added support for `cohere_chat/command-a-03-2025` and `gemini/gemma-3-27b-it`
+- The bare `/drop` command now preserves original read-only files provided via args.read.
+- Fixed a bug where default model would be set by deprecated `--shortcut` switches even when already specified in the command line.
+- Improved AutoCompleter to require 3 characters for autocompletion to reduce noise.
+- Aider wrote 72% of the code in this release.
+
+### Aider v0.76.2
+
+- Fixed handling of JSONDecodeError when loading model cache file.
+- Fixed handling of GitCommandError when retrieving git user configuration.
+- Aider wrote 75% of the code in this release.
+
 ### Aider v0.76.1
 
 - Added ignore_permission_denied option to file watcher to prevent errors when accessing restricted files, by Yutaka Matsubara.

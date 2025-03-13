@@ -207,10 +207,22 @@ class Coder:
             prefix = "Model"
 
         output = f"{prefix}: {main_model.name} with {self.edit_format} edit format"
+
+        # Check for thinking token budget
+        thinking_tokens = main_model.get_thinking_tokens(main_model)
+        if thinking_tokens:
+            output += f", {thinking_tokens} think tokens"
+
+        # Check for reasoning effort
+        reasoning_effort = main_model.get_reasoning_effort(main_model)
+        if reasoning_effort:
+            output += f", reasoning {reasoning_effort}"
+
         if self.add_cache_headers or main_model.caches_by_default:
             output += ", prompt cache"
         if main_model.info.get("supports_assistant_prefill"):
             output += ", infinite output"
+
         lines.append(output)
 
         if self.edit_format == "architect":
@@ -305,6 +317,7 @@ class Coder:
         ignore_mentions=None,
         file_watcher=None,
         auto_copy_context=False,
+        auto_accept_architect=True,
     ):
         # Fill in a dummy Analytics if needed, but it is never .enable()'d
         self.analytics = analytics if analytics is not None else Analytics()
@@ -317,6 +330,7 @@ class Coder:
         self.abs_root_path_cache = {}
 
         self.auto_copy_context = auto_copy_context
+        self.auto_accept_architect = auto_accept_architect
 
         self.ignore_mentions = ignore_mentions
         if not self.ignore_mentions:

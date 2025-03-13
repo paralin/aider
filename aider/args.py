@@ -119,7 +119,7 @@ def get_parser(default_config_files, git_root):
     )
     group.add_argument(
         "--thinking-tokens",
-        type=int,
+        type=str,
         help="Set the thinking token budget for models that support it (default: not set)",
     )
     group.add_argument(
@@ -147,6 +147,12 @@ def get_parser(default_config_files, git_root):
         dest="edit_format",
         const="architect",
         help="Use architect edit format for the main chat",
+    )
+    group.add_argument(
+        "--auto-accept-architect",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Enable/disable automatic acceptance of architect changes (default: True)",
     )
     group.add_argument(
         "--weak-model",
