@@ -378,7 +378,7 @@ class Coder:
         self.main_model = main_model
         # Set the reasoning tag name based on model settings or default
         self.reasoning_tag_name = (
-            self.main_model.remove_reasoning if self.main_model.remove_reasoning else REASONING_TAG
+            self.main_model.reasoning_tag if self.main_model.reasoning_tag else REASONING_TAG
         )
 
         self.stream = stream and main_model.streaming
@@ -1709,7 +1709,10 @@ class Coder:
         try:
             reasoning_content = completion.choices[0].message.reasoning_content
         except AttributeError:
-            reasoning_content = None
+            try:
+                reasoning_content = completion.choices[0].message.reasoning
+            except AttributeError:
+                reasoning_content = None
 
         try:
             self.partial_response_content = completion.choices[0].message.content or ""
@@ -1772,22 +1775,27 @@ class Coder:
                 pass
 
             text = ""
+
             try:
                 reasoning_content = chunk.choices[0].delta.reasoning_content
-                if reasoning_content:
-                    if not self.got_reasoning_content:
-                        text += f"<{REASONING_TAG}>\n\n"
-                    text += reasoning_content
-                    self.got_reasoning_content = True
-                    received_content = True
             except AttributeError:
-                pass
+                try:
+                    reasoning_content = chunk.choices[0].delta.reasoning
+                except AttributeError:
+                    reasoning_content = None
+
+            if reasoning_content:
+                if not self.got_reasoning_content:
+                    text += f"<{REASONING_TAG}>\n\n"
+                text += reasoning_content
+                self.got_reasoning_content = True
+                received_content = True
 
             try:
                 content = chunk.choices[0].delta.content
                 if content:
                     if self.got_reasoning_content and not self.ended_reasoning_content:
-                        text += f"\n\n</{REASONING_TAG}>\n\n"
+                        text += f"\n\n</{self.reasoning_tag_name}>\n\n"
                         self.ended_reasoning_content = True
 
                     text += content
