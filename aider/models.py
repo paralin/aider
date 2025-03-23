@@ -104,6 +104,7 @@ class ModelSettings:
     use_repo_map: bool = False
     send_undo_reply: bool = False
     lazy: bool = False
+    overeager: bool = False
     reminder: str = "user"
     examples_as_sys_msg: bool = False
     extra_params: Optional[dict] = None
@@ -117,6 +118,7 @@ class ModelSettings:
     reasoning_tag: Optional[str] = None
     remove_reasoning: Optional[str] = None  # Deprecated alias for reasoning_tag
     system_prompt_prefix: Optional[str] = None
+    accepts_settings: Optional[list] = None
 
 
 # Load model settings from package resource
@@ -296,6 +298,10 @@ class Model(ModelSettings):
                 exact_match = True
                 break  # Continue to apply overrides
 
+        # Initialize accepts_settings if it's None
+        if self.accepts_settings is None:
+            self.accepts_settings = []
+
         model = model.lower()
 
         # If no exact match, try generic settings
@@ -323,6 +329,8 @@ class Model(ModelSettings):
             self.use_repo_map = True
             self.use_temperature = False
             self.system_prompt_prefix = "Formatting re-enabled. "
+            if "reasoning_effort" not in self.accepts_settings:
+                self.accepts_settings.append("reasoning_effort")
             return  # <--
 
         if "/o1-mini" in model:
@@ -344,6 +352,8 @@ class Model(ModelSettings):
             self.use_temperature = False
             self.streaming = False
             self.system_prompt_prefix = "Formatting re-enabled. "
+            if "reasoning_effort" not in self.accepts_settings:
+                self.accepts_settings.append("reasoning_effort")
             return  # <--
 
         if "deepseek" in model and "v3" in model:
@@ -358,7 +368,6 @@ class Model(ModelSettings):
             self.use_repo_map = True
             self.examples_as_sys_msg = True
             self.use_temperature = False
-            self.reasoning_tag = "think"
             self.reasoning_tag = "think"
             return  # <--
 
@@ -385,7 +394,16 @@ class Model(ModelSettings):
             self.reminder = "sys"
             return  # <--
 
-        if "3.5-sonnet" in model or "3-5-sonnet" in model or "3-7-sonnet" in model or "3.7-sonnet" in model:
+        if "3-7-sonnet" in model or "3.7-sonnet" in model:
+            self.edit_format = "diff"
+            self.use_repo_map = True
+            self.examples_as_sys_msg = True
+            self.reminder = "user"
+            if "thinking_tokens" not in self.accepts_settings:
+                self.accepts_settings.append("thinking_tokens")
+            return  # <--
+
+        if "3.5-sonnet" in model or "3-5-sonnet" in model:
             self.edit_format = "diff"
             self.use_repo_map = True
             self.examples_as_sys_msg = True
@@ -573,6 +591,21 @@ class Model(ModelSettings):
 
         model = self.name
         res = litellm.validate_environment(model)
+
+        # If missing AWS credential keys but AWS_PROFILE is set, consider AWS credentials valid
+        if res["missing_keys"] and any(
+            key in ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"] for key in res["missing_keys"]
+        ):
+            if model.startswith("bedrock/") or model.startswith("us.anthropic."):
+                if os.environ.get("AWS_PROFILE"):
+                    res["missing_keys"] = [
+                        k
+                        for k in res["missing_keys"]
+                        if k not in ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
+                    ]
+                    if not res["missing_keys"]:
+                        res["keys_in_environment"] = True
+
         if res["keys_in_environment"]:
             return res
         if res["missing_keys"]:
@@ -647,16 +680,32 @@ class Model(ModelSettings):
             self.use_temperature = False
             if not self.extra_params:
                 self.extra_params = {}
-            self.extra_params["thinking"] = {"type": "enabled", "budget_tokens": num_tokens}
+
+            # OpenRouter models use 'reasoning' instead of 'thinking'
+            if self.name.startswith("openrouter/"):
+                self.extra_params["reasoning"] = {"max_tokens": num_tokens}
+            else:
+                self.extra_params["thinking"] = {"type": "enabled", "budget_tokens": num_tokens}
 
     def get_thinking_tokens(self, model):
         """Get formatted thinking token budget if available"""
-        if (
-            model.extra_params
-            and "thinking" in model.extra_params
-            and "budget_tokens" in model.extra_params["thinking"]
-        ):
-            budget = model.extra_params["thinking"]["budget_tokens"]
+        budget = None
+
+        if model.extra_params:
+            # Check for OpenRouter reasoning format
+            if (
+                "reasoning" in model.extra_params
+                and "max_tokens" in model.extra_params["reasoning"]
+            ):
+                budget = model.extra_params["reasoning"]["max_tokens"]
+            # Check for standard thinking format
+            elif (
+                "thinking" in model.extra_params
+                and "budget_tokens" in model.extra_params["thinking"]
+            ):
+                budget = model.extra_params["thinking"]["budget_tokens"]
+
+        if budget is not None:
             # Format as xx.yK for thousands, xx.yM for millions
             if budget >= 1024 * 1024:
                 value = budget / (1024 * 1024)
@@ -700,7 +749,6 @@ class Model(ModelSettings):
 
         kwargs = dict(
             model=self.name,
-            messages=messages,
             stream=stream,
         )
 
@@ -731,6 +779,8 @@ class Model(ModelSettings):
             kwargs["timeout"] = request_timeout
         if self.verbose:
             dump(kwargs)
+        kwargs["messages"] = messages
+
         res = litellm.completion(**kwargs)
         return hash_object, res
 

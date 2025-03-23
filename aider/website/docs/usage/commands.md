@@ -28,11 +28,14 @@ cog.out(get_help_md())
 | **/clear** | Clear the chat history |
 | **/code** | Ask for changes to your code. If no prompt provided, switches to code mode. |
 | **/commit** | Commit edits to the repo made outside the chat (commit message optional) |
+| **/context** | Enter context mode to see surrounding code context. If no prompt provided, switches to context mode. |
 | **/copy** | Copy the last assistant message to the clipboard |
 | **/copy-context** | Copy the current chat context as markdown, suitable to paste into a web UI |
 | **/diff** | Display the diff of changes since the last message |
 | **/drop** | Remove files from the chat session to free up context space |
+| **/edit** | Alias for /editor: Open an editor to write a prompt |
 | **/editor** | Open an editor to write a prompt |
+| **/editor-model** | Switch the Editor Model to a new LLM |
 | **/exit** | Exit the application |
 | **/git** | Run a git command (output excluded from chat) |
 | **/help** | Ask questions about aider |
@@ -41,7 +44,7 @@ cog.out(get_help_md())
 | **/ls** | List all known files and indicate which are included in the chat session |
 | **/map** | Print out the current repository map |
 | **/map-refresh** | Force a refresh of the repository map |
-| **/model** | Switch to a new LLM |
+| **/model** | Switch the Main Model to a new LLM |
 | **/models** | Search the list of available models |
 | **/multiline-mode** | Toggle multiline mode (swaps behavior of Enter and Meta+Enter) |
 | **/paste** | Paste image/text from the clipboard into the chat.        Optionally provide a name for the image. |
@@ -58,6 +61,7 @@ cog.out(get_help_md())
 | **/tokens** | Report on the number of tokens used by the current chat context |
 | **/undo** | Undo the last git commit if it was done by aider |
 | **/voice** | Record and transcribe voice input |
+| **/weak-model** | Switch the Weak Model to a new LLM |
 | **/web** | Scrape a webpage, convert to markdown and send in a message |
 
 <!--[[[end]]]-->
@@ -95,6 +99,7 @@ The interactive prompt is built with [prompt-toolkit](https://github.com/prompt-
 - `Ctrl-N` : Move down to the next history entry.
 - `Ctrl-P` : Move up to the previous history entry.
 - `Ctrl-R` : Reverse search in command history.
+- `Ctrl-Y` : Paste (yank) text that was previously cut.
 
 
 ### Vi
