@@ -610,6 +610,10 @@ cog.out("```\n")
   edit_format: diff
   use_repo_map: true
 
+- name: gemini/gemini-2.5-pro-exp-03-25
+  edit_format: diff-fenced
+  use_repo_map: true
+
 - name: gemini/gemini-exp-1114
   edit_format: diff
   use_repo_map: true
@@ -998,6 +1002,10 @@ cog.out("```\n")
   editor_model_name: openrouter/deepseek/deepseek-r1:free
   editor_edit_format: editor-diff
 
+- name: openrouter/google/gemini-2.5-pro-exp-03-25:free
+  edit_format: diff-fenced
+  use_repo_map: true
+
 - name: openrouter/google/gemma-3-27b-it
   use_system_prompt: false
 
@@ -1138,6 +1146,10 @@ cog.out("```\n")
 
 - name: vertex_ai/claude-3-sonnet@20240229
   weak_model_name: vertex_ai/claude-3-5-haiku@20241022
+
+- name: vertex_ai/gemini-2.5-pro-exp-03-25
+  edit_format: diff-fenced
+  use_repo_map: true
 
 - name: vertex_ai/gemini-pro-experimental
   edit_format: diff-fenced
