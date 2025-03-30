@@ -983,7 +983,7 @@ class TestMain(TestCase):
             coder = main(
                 ["--exit", "--yes"], input=DummyInput(), output=DummyOutput(), return_coder=True
             )
-            self.assertIn("openrouter/anthropic/claude", coder.main_model.name.lower())
+            self.assertIn("openrouter/", coder.main_model.name.lower())
             del os.environ["OPENROUTER_API_KEY"]
 
             # Test OpenAI API key
@@ -999,12 +999,15 @@ class TestMain(TestCase):
             coder = main(
                 ["--exit", "--yes"], input=DummyInput(), output=DummyOutput(), return_coder=True
             )
-            self.assertIn("flash", coder.main_model.name.lower())
+            self.assertIn("gemini", coder.main_model.name.lower())
             del os.environ["GEMINI_API_KEY"]
 
-            # Test no API keys
-            result = main(["--exit", "--yes"], input=DummyInput(), output=DummyOutput())
-            self.assertEqual(result, 1)
+            # Test no API keys - should offer OpenRouter OAuth
+            with patch("aider.onboarding.offer_openrouter_oauth") as mock_offer_oauth:
+                mock_offer_oauth.return_value = None  # Simulate user declining or failure
+                result = main(["--exit", "--yes"], input=DummyInput(), output=DummyOutput())
+                self.assertEqual(result, 1)  # Expect failure since no model could be selected
+                mock_offer_oauth.assert_called_once()
 
     def test_model_precedence(self):
         with GitTemporaryDirectory():
@@ -1246,3 +1249,40 @@ class TestMain(TestCase):
                 # Only set_reasoning_effort should be called, not set_thinking_tokens
                 mock_instance.set_reasoning_effort.assert_called_once_with("3")
                 mock_instance.set_thinking_tokens.assert_not_called()
+
+    @patch("aider.main.InputOutput")
+    def test_stream_and_cache_warning(self, MockInputOutput):
+        mock_io_instance = MockInputOutput.return_value
+        with GitTemporaryDirectory():
+            main(
+                ["--stream", "--cache-prompts", "--exit", "--yes"],
+                input=DummyInput(),
+                output=DummyOutput(),
+            )
+        mock_io_instance.tool_warning.assert_called_with(
+            "Cost estimates may be inaccurate when using streaming and caching."
+        )
+
+    @patch("aider.main.InputOutput")
+    def test_stream_without_cache_no_warning(self, MockInputOutput):
+        mock_io_instance = MockInputOutput.return_value
+        with GitTemporaryDirectory():
+            main(
+                ["--stream", "--exit", "--yes"],
+                input=DummyInput(),
+                output=DummyOutput(),
+            )
+        for call in mock_io_instance.tool_warning.call_args_list:
+            self.assertNotIn("Cost estimates may be inaccurate", call[0][0])
+
+    @patch("aider.main.InputOutput")
+    def test_cache_without_stream_no_warning(self, MockInputOutput):
+        mock_io_instance = MockInputOutput.return_value
+        with GitTemporaryDirectory():
+            main(
+                ["--cache-prompts", "--exit", "--yes", "--no-stream"],
+                input=DummyInput(),
+                output=DummyOutput(),
+            )
+        for call in mock_io_instance.tool_warning.call_args_list:
+            self.assertNotIn("Cost estimates may be inaccurate", call[0][0])
