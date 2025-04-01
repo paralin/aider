@@ -629,121 +629,6 @@ cog.out("```\n")
 - name: gemini/gemma-3-27b-it
   use_system_prompt: false
 
-- name: github_copilot/claude-3.5-sonnet
-  edit_format: diff
-  weak_model_name: github_copilot/claude-3.5-haiku
-  use_repo_map: true
-  examples_as_sys_msg: true
-  extra_params:
-    extra_headers:
-      editor-version: Neovim/0.9.0
-      Copilot-Integration-Id: vscode-chat
-  cache_control: true
-  editor_model_name: github_copilot/claude-3.5-sonnet
-  editor_edit_format: editor-diff
-
-- name: github_copilot/claude-3.7-sonnet
-  edit_format: diff
-  weak_model_name: github_copilot/claude-3.5-sonnet
-  use_repo_map: true
-  examples_as_sys_msg: true
-  extra_params:
-    extra_headers:
-      editor-version: Neovim/0.9.0
-      Copilot-Integration-Id: vscode-chat
-  cache_control: true
-  editor_model_name: github_copilot/claude-3.7-sonnet
-  editor_edit_format: editor-diff
-
-- name: github_copilot/claude-3.7-sonnet-thought
-  edit_format: diff
-  weak_model_name: github_copilot/claude-3.7-sonnet
-  use_repo_map: true
-  examples_as_sys_msg: true
-  extra_params:
-    extra_headers:
-      editor-version: Neovim/0.9.0
-      Copilot-Integration-Id: vscode-chat
-  cache_control: true
-  editor_model_name: github_copilot/claude-3.7-sonnet-thought
-  editor_edit_format: editor-diff
-
-- name: github_copilot/gemini-2.0-flash
-  edit_format: diff
-  use_repo_map: true
-  extra_params:
-    extra_headers:
-      editor-version: Neovim/0.9.0
-      Copilot-Integration-Id: vscode-chat
-
-- name: github_copilot/gpt-3.5-turbo
-  weak_model_name: gpt-4o-mini
-  reminder: sys
-  extra_params:
-    extra_headers:
-      editor-version: Neovim/0.9.0
-      Copilot-Integration-Id: vscode-chat
-
-- name: github_copilot/gpt-4
-  edit_format: udiff
-  weak_model_name: gpt-4o-mini
-  use_repo_map: true
-  lazy: true
-  reminder: sys
-  extra_params:
-    extra_headers:
-      editor-version: Neovim/0.9.0
-      Copilot-Integration-Id: vscode-chat
-
-- name: github_copilot/gpt-4o
-  edit_format: diff
-  weak_model_name: github_copilot/gpt-4o-mini
-  use_repo_map: true
-  extra_params:
-    extra_headers:
-      editor-version: Neovim/0.9.0
-      Copilot-Integration-Id: vscode-chat
-  use_temperature: false
-  editor_model_name: gpt-4o
-  editor_edit_format: editor-diff
-  system_prompt_prefix: 'Formatting re-enabled. '
-
-- name: github_copilot/gpt-4o-mini
-  weak_model_name: github_copilot/gpt-4o-mini
-  lazy: true
-  reminder: sys
-  extra_params:
-    extra_headers:
-      editor-version: Neovim/0.9.0
-      Copilot-Integration-Id: vscode-chat
-
-- name: github_copilot/o1-ga
-  edit_format: diff
-  weak_model_name: github_copilot/gpt-4o-mini
-  use_repo_map: true
-  extra_params:
-    extra_headers:
-      editor-version: Neovim/0.9.0
-      Copilot-Integration-Id: vscode-chat
-  use_temperature: false
-  streaming: false
-  editor_model_name: gpt-4o
-  editor_edit_format: editor-diff
-  system_prompt_prefix: 'Formatting re-enabled. '
-
-- name: github_copilot/o3-mini
-  edit_format: diff
-  weak_model_name: azure/gpt-4o-mini
-  use_repo_map: true
-  extra_params:
-    extra_headers:
-      editor-version: Neovim/0.9.0
-      Copilot-Integration-Id: vscode-chat
-  use_temperature: false
-  editor_model_name: azure/gpt-4o
-  editor_edit_format: editor-diff
-  system_prompt_prefix: 'Formatting re-enabled. '
-
 - name: gpt-3.5-turbo
   weak_model_name: gpt-4o-mini
   reminder: sys
@@ -1072,6 +957,18 @@ cog.out("```\n")
     max_tokens: 8192
   caches_by_default: true
 
+- name: openrouter/deepseek/deepseek-chat-v3-0324:free
+  edit_format: diff
+  weak_model_name: openrouter/deepseek/deepseek-chat-v3-0324:free
+  use_repo_map: true
+  examples_as_sys_msg: true
+  extra_params:
+    max_tokens: 131072
+  caches_by_default: true
+  use_temperature: false
+  editor_model_name: openrouter/deepseek/deepseek-r1:free
+  editor_edit_format: editor-diff
+
 - name: openrouter/deepseek/deepseek-chat:free
   edit_format: diff
   weak_model_name: openrouter/deepseek/deepseek-chat:free
@@ -1122,9 +1019,6 @@ cog.out("```\n")
   extra_params:
     max_tokens: 8192
   caches_by_default: true
-  use_temperature: false
-  editor_model_name: openrouter/deepseek/deepseek-r1:free
-  editor_edit_format: editor-diff
 
 - name: openrouter/google/gemini-2.5-pro-exp-03-25:free
   edit_format: diff-fenced
