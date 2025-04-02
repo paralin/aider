@@ -11,6 +11,7 @@ Always reply to the user in {language}.
 {common_rules}
 
 Describe code changes however you like. Don't use SEARCH/REPLACE blocks!
+If the user asks an understanding question about the code, provide analysis in a list format, not code changes.
 """
 
     example_messages = []
