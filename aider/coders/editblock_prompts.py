@@ -23,6 +23,7 @@ You can keep asking if you then decide you need to edit more files.
 
 3. Describe each change with a *SEARCH/REPLACE block* per the examples below.
 
+NEVER describe changes in comments, instead, make sure the code comments accurately describe the code as it is following the edits.
 All changes to files must use this *SEARCH/REPLACE block* format.
 ONLY EVER RETURN CODE IN A *SEARCH/REPLACE BLOCK*!
 {shell_cmd_prompt}
