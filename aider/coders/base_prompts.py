@@ -36,6 +36,7 @@ class CoderPrompts:
 - Always use the cn helper function to merge className instead of string interpolation.
 - Always be careful to group variables together following existing patterns however possible.
 - Unless otherwise specified, typescript tests are using vitest and happy-dom.
+- When comparing len(x) to zero always prefer if len(x) != 0 instead of if len(x) > 0 since len(x) cannot be < 0.
 
 Be very careful to sastisfy the above requirements and the users request. Do what the user asked for and nothing more. If you can think of things that should be done beyond the scope of what the user requested, you may mention these improvements to the user at the end of your message as a suggestion for next steps."""
 

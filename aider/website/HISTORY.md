@@ -24,16 +24,35 @@ cog.out(text)
 ]]]-->
 
 
+### Aider v0.81.1
+
+- Added support for the `gemini/gemini-2.5-pro-preview-03-25` model.
+- Updated the `gemini` alias to point to `gemini/gemini-2.5-pro-preview-03-25`.
+- Added the `gemini-exp` alias for `gemini/gemini-2.5-pro-exp-03-25`.
+- Aider wrote 87% of the code in this release.
+
+### Aider v0.81.0
+
+- Added support for the `openrouter/openrouter/quasar-alpha` model.
+  - Run with `aider --model quasar`
+- Offer OpenRouter OAuth authentication if an OpenRouter model is specified but the API key is missing.
+- Prevent retrying API calls when the provider reports insufficient credits.
+- Improve URL detection to exclude trailing double quotes.
+- Aider wrote 86% of the code in this release.
+
+### Aider v0.80.4
+
+- Bumped deps to pickup litellm change to properly display the root cause of OpenRouter "choices" errors.
+
 ### Aider v0.80.3
 
 - Improve error message for OpenRouter API connection issues to mention potential rate limiting or upstream provider issues.
 - Configure weak models (`gemini/gemini-2.0-flash` and `openrouter/google/gemini-2.0-flash-exp:free`) for Gemini 2.5 Pro models.
 - Add model metadata for `openrouter/google/gemini-2.0-flash-exp:free`.
-- Aider wrote 85% of the code in this release.
 
 ### Aider v0.80.2
 
-- Bumped deps to pickup litellm change to properly display the root cause of OpenRouter "choices" errors.
+- Bumped deps.
 
 ### Aider v0.80.1
 
