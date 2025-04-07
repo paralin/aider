@@ -830,7 +830,7 @@
   use_temperature: false
   editor_model_name: openrouter/deepseek/deepseek-chat
   editor_edit_format: editor-diff
-  
+
 - name: fireworks_ai/accounts/fireworks/models/deepseek-r1
   edit_format: diff
   weak_model_name: fireworks_ai/accounts/fireworks/models/deepseek-v3
@@ -851,6 +851,14 @@
   extra_params:
       max_tokens: 128000
 
+- name: fireworks_ai/accounts/fireworks/models/deepseek-v3-0324
+  edit_format: diff
+  use_repo_map: true
+  reminder: sys
+  examples_as_sys_msg: true
+  extra_params:
+      max_tokens: 160000
+
 - name: openai/o3-mini
   edit_format: diff
   weak_model_name: gpt-4o-mini
@@ -860,7 +868,7 @@
   editor_edit_format: editor-diff
   system_prompt_prefix: "Formatting re-enabled. "
   accepts_settings: ["reasoning_effort"]
-  
+
 - name: o3-mini
   edit_format: diff
   weak_model_name: gpt-4o-mini
@@ -910,7 +918,7 @@
   examples_as_sys_msg: true
   editor_model_name: gpt-4o
   editor_edit_format: editor-diff
-  
+
 - name: openai/gpt-4.5-preview
   edit_format: diff
   weak_model_name: gpt-4o-mini
@@ -955,10 +963,10 @@
 
 - name: gemini/gemma-3-27b-it
   use_system_prompt: false
-  
+
 - name: openrouter/google/gemma-3-27b-it:free
   use_system_prompt: false
-  
+
 - name: openrouter/google/gemma-3-27b-it
   use_system_prompt: false
 
