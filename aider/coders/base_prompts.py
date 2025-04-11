@@ -39,6 +39,8 @@ class CoderPrompts:
 - When comparing len(x) to zero always prefer if len(x) != 0 instead of if len(x) > 0 since len(x) cannot be < 0.
 - When writing comments always use the Go style of "myVariableName stores the x y z and does foo bar."
 
+Remember: never write comments about the changes you are making, like "// Changed foo to bar." Instead, remember to write comments that fit cleanly into the updated codebase as a description of what the code does in its updated state.
+
 Be very careful to sastisfy the above requirements and the users request. Do what the user asked for and nothing more. If you can think of things that should be done beyond the scope of what the user requested, you may mention these improvements to the user at the end of your message as a suggestion for next steps."""
 
     system_reminder = ""
