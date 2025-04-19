@@ -38,6 +38,7 @@ class CoderPrompts:
 - Unless otherwise specified, typescript tests are using vitest and happy-dom.
 - When comparing len(x) to zero always prefer if len(x) != 0 instead of if len(x) > 0 since len(x) cannot be < 0.
 - When writing comments always use the Go style of "myVariableName stores the x y z and does foo bar."
+- Assume AbortSignal and AbortController are available in JavaScript, don't use node-abort-controller.
 
 Remember: never write comments about the changes you are making, like "// Changed foo to bar." Instead, remember to write comments that fit cleanly into the updated codebase as a description of what the code does in its updated state.
 
