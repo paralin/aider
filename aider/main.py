@@ -1102,9 +1102,6 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
         io.tool_output(f"Cur working dir: {Path.cwd()}")
         io.tool_output(f"Git working dir: {git_root}")
 
-    if args.stream and args.cache_prompts:
-        io.tool_warning("Cost estimates may be inaccurate when using streaming and caching.")
-
     if args.load:
         commands.cmd_load(args.load)
 

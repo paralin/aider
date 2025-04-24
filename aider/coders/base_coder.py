@@ -238,20 +238,20 @@ class Coder:
             lines.append(output)
 
         # Repo
-        if self.repo:
-            rel_repo_dir = self.repo.get_rel_repo_dir()
-            num_files = len(self.repo.get_tracked_files())
+        #if self.repo:
+        #    rel_repo_dir = self.repo.get_rel_repo_dir()
+        #    num_files = len(self.repo.get_tracked_files())
 
-            lines.append(f"Git repo: {rel_repo_dir} with {num_files:,} files")
-        else:
-            lines.append("Git repo: none")
+        #    lines.append(f"Git repo: {rel_repo_dir} with {num_files:,} files")
+        #else:
+        #    lines.append("Git repo: none")
 
         # Repo-map
         if self.repo_map:
             map_tokens = self.repo_map.max_map_tokens
             if map_tokens > 0:
                 refresh = self.repo_map.refresh
-                lines.append(f"Repo-map: using {map_tokens} tokens, {refresh} refresh")
+                #lines.append(f"Repo-map: using {map_tokens} tokens, {refresh} refresh")
                 max_map_tokens = self.main_model.get_repo_map_tokens() * 2
                 if map_tokens > max_map_tokens:
                     lines.append(
@@ -259,9 +259,11 @@ class Coder:
                         " irrelevant code can confuse LLMs."
                     )
             else:
-                lines.append("Repo-map: disabled because map_tokens == 0")
+                # lines.append("Repo-map: disabled because map_tokens == 0")
+                pass
         else:
-            lines.append("Repo-map: disabled")
+            # lines.append("Repo-map: disabled")
+            pass
 
         # Files
         for fname in self.get_inchat_relative_files():
@@ -274,8 +276,8 @@ class Coder:
         if self.done_messages:
             lines.append("Restored previous conversation history.")
 
-        if self.io.multiline_mode:
-            lines.append("Multiline mode: Enabled. Enter inserts newline, Alt-Enter submits text")
+        #if self.io.multiline_mode:
+        #    lines.append("Multiline mode: Enabled. Enter inserts newline, Alt-Enter submits text")
 
         return lines
 
