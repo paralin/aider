@@ -407,6 +407,12 @@ def get_parser(default_config_files, git_root):
         help="Specify the aider ignore file (default: .aiderignore in git root)",
     )
     group.add_argument(
+        "--roo",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Load additional rules from .roo/rules/* in the git root (default: False)",
+    )
+    group.add_argument(
         "--subtree-only",
         action="store_true",
         help="Only consider files in the current subtree of the git repository",

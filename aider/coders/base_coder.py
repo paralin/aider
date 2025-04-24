@@ -7,6 +7,7 @@ import locale
 import math
 import mimetypes
 import os
+from pathlib import Path
 import platform
 import re
 import sys
@@ -318,6 +319,7 @@ class Coder:
         file_watcher=None,
         auto_copy_context=False,
         auto_accept_architect=True,
+        roo=False,
     ):
         # Fill in a dummy Analytics if needed, but it is never .enable()'d
         self.analytics = analytics if analytics is not None else Analytics()
@@ -336,6 +338,7 @@ class Coder:
         if not self.ignore_mentions:
             self.ignore_mentions = set()
 
+        self.roo = roo
         self.file_watcher = file_watcher
         if self.file_watcher:
             self.file_watcher.coder = self
@@ -1082,6 +1085,22 @@ class Coder:
             lazy_prompt = ""
 
         common_rules = self.gpt_prompts.common_rules
+
+        # Load roo rules if requested
+        if self.roo and self.repo and self.repo.root:
+            roo_rules_dir = Path(self.repo.root) / ".roo" / "rules"
+            if roo_rules_dir.is_dir():
+                roo_rules = []
+                for rule_file in roo_rules_dir.glob("*"):
+                    if rule_file.is_file():
+                        try:
+                            roo_rules.append(rule_file.read_text())
+                        except Exception as e:
+                            self.io.tool_error(f"Error reading roo rule file {rule_file}: {e}")
+                if roo_rules:
+                    common_rules += "\n\n# Additional rules from .roo/rules:\n" + "\n".join(roo_rules)
+
+
         platform_text = self.get_platform_info()
 
         if self.suggest_shell_commands:
