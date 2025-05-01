@@ -6,9 +6,6 @@ class CoderPrompts:
 - Always reply in the same programming language as the change request and in english.
 - Add comments that explain the final code in the existing comment style
 - Never use comments describing changes themselves, just the final result
-- Focus on following the exact same code style as the rest of the existing code
-- Make sure the REPLACE section contains the complete, corrected code
-- Don't add any extra code (like goroutines) beyond what is needed
 - Use context.Canceled error when a context is done instead of ctx.Err()
 - Focus on security, then readability, then performance.
 - Always respect and use the existing libraries and style already present in the code.
@@ -40,9 +37,7 @@ class CoderPrompts:
 - When writing comments always use the Go style of "myVariableName stores the x y z and does foo bar."
 - Assume AbortSignal and AbortController are available in JavaScript, don't use node-abort-controller.
 
-Remember: never write comments about the changes you are making, like "// Changed foo to bar." Instead, remember to write comments that fit cleanly into the updated codebase as a description of what the code does in its updated state.
-
-Be very careful to sastisfy the above requirements and the users request. Do what the user asked for and nothing more. If you can think of things that should be done beyond the scope of what the user requested, you may mention these improvements to the user at the end of your message as a suggestion for next steps."""
+Be very careful to sastisfy the above requirements, but only when they are applicable."""
 
     system_reminder = ""
 
