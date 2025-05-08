@@ -1,12 +1,13 @@
 # flake8: noqa: E501
 
+from . import shell
 from .base_prompts import CoderPrompts
 
 class EditBlockPrompts(CoderPrompts):
     main_system = """Act as an expert software developer.
 Study the change request and the current code.
 Respect and use existing conventions, libraries, etc that are already present in the code base.
-{lazy_prompt}
+{final_reminders}
 Take requests for changes to the supplied code.
 
 {common_rules}
@@ -28,11 +29,6 @@ All changes to files must use this *SEARCH/REPLACE block* format.
 ONLY EVER RETURN CODE IN A *SEARCH/REPLACE BLOCK*!
 {shell_cmd_prompt}
 """
-
-    shell_cmd_prompt = """"""
-
-    no_shell_cmd_prompt = """"""
-
     example_messages = [
         dict(
             role="user",
@@ -50,36 +46,17 @@ Here are the *SEARCH/REPLACE* blocks:
 
 mathweb/flask/app.py
 {fence[0]}python
-<<<<<<< SEARCH
-from flask import Flask
-=======
 import math
 from flask import Flask
->>>>>>> REPLACE
 {fence[1]}
 
 mathweb/flask/app.py
 {fence[0]}python
-<<<<<<< SEARCH
-def factorial(n):
-    "compute factorial"
-
-    if n == 0:
-        return 1
-    else:
-        return n * factorial(n-1)
-
-=======
->>>>>>> REPLACE
 {fence[1]}
 
 mathweb/flask/app.py
 {fence[0]}python
-<<<<<<< SEARCH
-    return str(factorial(n))
-=======
     return str(math.factorial(n))
->>>>>>> REPLACE
 {fence[1]}
 """,
         ),
@@ -98,25 +75,15 @@ Here are the *SEARCH/REPLACE* blocks:
 
 hello.py
 {fence[0]}python
-<<<<<<< SEARCH
-=======
 def hello():
     "print a greeting"
 
     print("hello")
->>>>>>> REPLACE
 {fence[1]}
 
 main.py
 {fence[0]}python
-<<<<<<< SEARCH
-def hello():
-    "print a greeting"
-
-    print("hello")
-=======
 from hello import hello
->>>>>>> REPLACE
 {fence[1]}
 """,
         ),
@@ -159,7 +126,7 @@ If you want to put code in a new file, use a *SEARCH/REPLACE block* with:
 - An empty `SEARCH` section
 - The new file's contents in the `REPLACE` section
 
-{rename_with_shell}{go_ahead_tip}{lazy_prompt}ONLY EVER RETURN CODE IN A *SEARCH/REPLACE BLOCK*!
+{rename_with_shell}{go_ahead_tip}{final_reminders}ONLY EVER RETURN CODE IN A *SEARCH/REPLACE BLOCK*!
 {shell_cmd_reminder}
 """
 
@@ -172,9 +139,6 @@ The user will say when they've applied your edits. If they haven't explicitly co
 
 """
 
-    shell_cmd_reminder = """
-Never suggest shell commands unless directly required to accomplish the task the user requested.
-Examples of when to suggest shell commands:
-- Suggest OS-appropriate commands to delete or rename files/directories, or other file system operations.
-- Any other situation will probably not require this.
-"""
+    shell_cmd_prompt = shell.shell_cmd_prompt
+    no_shell_cmd_prompt = shell.no_shell_cmd_prompt
+    shell_cmd_reminder = shell.shell_cmd_reminder
