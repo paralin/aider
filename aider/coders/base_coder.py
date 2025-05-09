@@ -1159,7 +1159,6 @@ class Coder:
                             self.io.tool_error(f"Error reading roo rule file {rule_file}: {e}")
                 if roo_rules:
                     common_rules += "\n\n# Additional rules from .roo/rules:\n" + "\n".join(roo_rules)
-        final_reminders.append(common_rules)
 
         if self.main_model.lazy:
             final_reminders.append(self.gpt_prompts.lazy_prompt)
@@ -1199,6 +1198,7 @@ class Coder:
 
         prompt = prompt.format(
             fence=self.fence,
+            common_rules=common_rules,
             quad_backtick_reminder=quad_backtick_reminder,
             final_reminders=final_reminders,
             platform=platform_text,
