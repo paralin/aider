@@ -239,27 +239,31 @@ class ModelInfoManager:
 
         return cached_info
 
-
     def fetch_openrouter_model_info(self, model):
         """
         Fetch model info by scraping the openrouter model page.
         Expected URL: https://openrouter.ai/<model_route>
         Example: openrouter/qwen/qwen-2.5-72b-instruct:free
-        Returns a dict with keys: max_tokens, max_input_tokens, max_output_tokens, input_cost_per_token, output_cost_per_token.
+        Returns a dict with keys: max_tokens, max_input_tokens, max_output_tokens,
+        input_cost_per_token, output_cost_per_token.
         """
-        url_part = model[len("openrouter/"):]
+        url_part = model[len("openrouter/") :]
         url = "https://openrouter.ai/" + url_part
         try:
             import requests
+
             response = requests.get(url, timeout=5, verify=self.verify_ssl)
             if response.status_code != 200:
                 return {}
             html = response.text
             import re
-            if re.search(rf'The model\s*.*{re.escape(url_part)}.* is not available', html, re.IGNORECASE):
+
+            if re.search(
+                rf"The model\s*.*{re.escape(url_part)}.* is not available", html, re.IGNORECASE
+            ):
                 print(f"\033[91mError: Model '{url_part}' is not available\033[0m")
                 return {}
-            text = re.sub(r'<[^>]+>', ' ', html)
+            text = re.sub(r"<[^>]+>", " ", html)
             context_match = re.search(r"([\d,]+)\s*context", text)
             if context_match:
                 context_str = context_match.group(1).replace(",", "")
@@ -283,6 +287,7 @@ class ModelInfoManager:
         except Exception as e:
             print("Error fetching openrouter info:", str(e))
             return {}
+
 
 model_info_manager = ModelInfoManager()
 
@@ -517,6 +522,14 @@ class Model(ModelSettings):
             self.examples_as_sys_msg = True
             self.use_temperature = 0.6
             self.extra_params = dict(top_p=0.95)
+            return  # <--
+
+        if "qwen3" in model and "235b" in model:
+            self.edit_format = "diff"
+            self.use_repo_map = True
+            self.system_prompt_prefix = "/no_think"
+            self.use_temperature = 0.7
+            self.extra_params = {"top_p": 0.8, "top_k": 20, "min_p": 0.0}
             return  # <--
 
         # use the defaults
@@ -900,6 +913,9 @@ class Model(ModelSettings):
         if "deepseek-reasoner" in self.name:
             messages = ensure_alternating_roles(messages)
         retry_delay = 0.125
+
+        if self.verbose:
+            dump(messages)
 
         while True:
             try:

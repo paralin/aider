@@ -1,18 +1,40 @@
 # Release history
 
 ### main branch
-- Automatically fetch model parameters (context window, pricing) for OpenRouter models directly from their website, by Stefan Hladnik.
+
 - Added support for `gemini-2.5-pro-preview-05-06` models.
+- Added support for `qwen3-235b` models.
+- Added repo-map support for OCaml and OCaml interface files, by Andrey Popp.
+- Added a spinner animation while waiting for the LLM to start streaming its response.
+- Updated the spinner animation to a Knight Rider style.
+- Introduced `--attribute-co-authored-by` option to add co-author trailer to commit messages, by Andrew Grigorev.
+- Updated Gemini model aliases (e.g., `gemini`, `gemini-2.5-pro`) to point to the `05-06` preview versions.
+- Marked Gemini 2.5 Pro preview models as `overeager` by default.
+- Commit message prompt specifies the user's language.
+- Updated the default weak model for Gemini 2.5 Pro models to `gemini/gemini-2.5-flash-preview-04-17`.
+- Corrected `gemini-2.5-pro-exp-03-25` model settings to reflect its lack of support for `thinking_budget`.
+- Ensured model-specific system prompt prefixes are placed on a new line before the main system prompt.
+- Added tracking of total tokens sent and received, now included in benchmark statistics.
+- Automatically fetch model parameters (context window, pricing) for OpenRouter models directly from their website, by Stefan Hladnik.
 - Enabled support for `thinking_tokens` and `reasoning_effort` parameters for OpenRouter models.
+- Improved cost calculation using `litellm.completion_cost` where available.
 - Added model settings for `openrouter/google/gemini-2.5-pro-preview-03-25`.
- Introduced `--attribute-co-authored-by` option to add co-author trailer to commit messages, by Andrew Grigorev.
 - Added `--disable-playwright` flag to prevent Playwright installation prompts and usage, by Andrew Grigorev.
 - The `aider scrape` command-line tool will now use Playwright for web scraping if it is available, by Jon Keys.
-- Added repomap support for OCaml and OCaml interface files, by Andrey Popp.
-- Improved cost calculation using `litellm.completion_cost` where available.
 - Fixed linter command execution on Windows by adopting `oslex` for argument quoting, by Titusz Pan.
 - Improved cross-platform display of shell commands by using `oslex` for robust argument quoting, by Titusz Pan.
-- Aider wrote 45% of the code in this release.
+- Improved `/ask` mode to instruct the LLM to elide unchanging code in its responses.
+- Ensured web scraping in the GUI also respects Playwright availability and the `--disable-playwright` flag.
+- Improved display of filenames in the prompt header using rich Text formatting.
+- Enabled `reasoning_effort` for Gemini 2.5 Flash models.
+- Added a `--shell-completions` argument to generate shell completion scripts (e.g., for bash, zsh).
+- Explicit `--attribute-author` or `--attribute-committer` flags now override the default behavior when `--attribute-co-authored-by` is used, allowing finer control over commit attribution, by Andrew Grigorev.
+- Fixed an issue where read-only status of files might not be preserved correctly by some commands (e.g. `/drop` after adding a read-only file).
+- The `aider-args` utility (or `python -m aider.args`) now defaults to printing a sample YAML configuration if no arguments are provided.
+- Displayed token count progress and the name of the file or identifier being processed during repo map updates.
+- Extended the waiting spinner to also show for non-streaming responses and further enhanced its animation with console width clipping, cursor hiding, and a more continuous appearance.
+- Dropped support for Python 3.9.
+- Aider wrote 55% of the code in this release.
 
 ### Aider v0.82.3
 

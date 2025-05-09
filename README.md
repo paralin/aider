@@ -27,7 +27,7 @@ cog.out(text)
   <a href="https://github.com/Aider-AI/aider/stargazers"><img alt="GitHub Stars" title="Total number of GitHub stars the Aider project has received"
 src="https://img.shields.io/github/stars/Aider-AI/aider?style=flat-square&logo=github&color=f1c40f&labelColor=555555"/></a>
   <a href="https://pypi.org/project/aider-chat/"><img alt="PyPI Downloads" title="Total number of installations via pip from PyPI"
-src="https://img.shields.io/badge/📦%20Installs-2.1M-2ecc71?style=flat-square&labelColor=555555"/></a>
+src="https://img.shields.io/badge/📦%20Installs-2.2M-2ecc71?style=flat-square&labelColor=555555"/></a>
   <img alt="Tokens per week" title="Number of tokens processed weekly by Aider users"
 src="https://img.shields.io/badge/📈%20Tokens%2Fweek-15B-3498db?style=flat-square&labelColor=555555"/>
   <a href="https://openrouter.ai/#options-menu"><img alt="OpenRouter Ranking" title="Aider's ranking among applications on the OpenRouter platform"
@@ -135,7 +135,7 @@ See the [installation instructions](https://aider.chat/docs/install.html) and [u
 ### Community & Resources
 - [LLM Leaderboards](https://aider.chat/docs/leaderboards/)
 - [GitHub Repository](https://github.com/Aider-AI/aider)
-- [Discord Community](https://discord.gg/Tv2uQnR88V)
+- [Discord Community](https://discord.gg/Y7X7bhMQFV)
 - [Blog](https://aider.chat/blog/)
 
 ## Kind Words From Users
@@ -173,5 +173,6 @@ See the [installation instructions](https://aider.chat/docs/install.html) and [u
 - *"Oh no the secret is out! Yes, Aider is the best coding tool around. I highly, highly recommend it to anyone."* — [Joshua D Vander Hook](https://x.com/jodavaho/status/1911154899057795218)
 - *"thanks to aider, i have started and finished three personal projects within the last two days"* — [joseph stalzyn](https://x.com/anitaheeder/status/1908338609645904160)
 - *"Been using aider as my daily driver for over a year ... I absolutely love the tool, like beyond words."* — [koleok](https://discord.com/channels/1131200896827654144/1273248471394291754/1356727448372252783)
+- *"Aider ... is the tool to benchmark against."* — [BeetleB](https://news.ycombinator.com/item?id=43930201)
 - *"aider is really cool"* — [kache (@yacineMTB)](https://x.com/yacineMTB/status/1911224442430124387)
 

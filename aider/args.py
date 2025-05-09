@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 import configargparse
+import shtab
 
 from aider import __version__
 from aider.args_formatter import (
@@ -816,6 +817,17 @@ def get_parser(default_config_files, git_root):
         help="Specify which editor to use for the /editor command",
     )
 
+    supported_shells_list = sorted(list(shtab.SUPPORTED_SHELLS))
+    group.add_argument(
+        "--shell-completions",
+        metavar="SHELL",
+        choices=supported_shells_list,
+        help=(
+            "Print shell completion script for the specified SHELL and exit. Supported shells:"
+            f" {', '.join(supported_shells_list)}. Example: aider --shell-completions bash"
+        ),
+    )
+
     ##########
     group = parser.add_argument_group("Deprecated model settings")
     # Add deprecated model shortcut arguments
@@ -864,13 +876,34 @@ def get_sample_dotenv():
 
 
 def main():
-    arg = sys.argv[1] if len(sys.argv[1:]) else None
-
-    if arg == "md":
-        print(get_md_help())
-    elif arg == "dotenv":
-        print(get_sample_dotenv())
+    if len(sys.argv) > 1:
+        command = sys.argv[1]
     else:
+        command = "yaml"  # Default to yaml if no command is given
+
+    if command == "md":
+        print(get_md_help())
+    elif command == "dotenv":
+        print(get_sample_dotenv())
+    elif command == "yaml":
+        print(get_sample_yaml())
+    elif command == "completion":
+        if len(sys.argv) > 2:
+            shell = sys.argv[2]
+            if shell not in shtab.SUPPORTED_SHELLS:
+                print(f"Error: Unsupported shell '{shell}'.", file=sys.stderr)
+                print(f"Supported shells are: {', '.join(shtab.SUPPORTED_SHELLS)}", file=sys.stderr)
+                sys.exit(1)
+            parser = get_parser([], None)
+            parser.prog = "aider"  # Set the program name on the parser
+            print(shtab.complete(parser, shell=shell))
+        else:
+            print("Error: Please specify a shell for completion.", file=sys.stderr)
+            print(f"Usage: python {sys.argv[0]} completion <shell_name>", file=sys.stderr)
+            print(f"Supported shells are: {', '.join(shtab.SUPPORTED_SHELLS)}", file=sys.stderr)
+            sys.exit(1)
+    else:
+        # Default to YAML for any other unrecognized argument, or if 'yaml' was explicitly passed
         print(get_sample_yaml())
 
 
