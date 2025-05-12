@@ -208,10 +208,7 @@ class GitRepo:
         if message:
             commit_message = message
         else:
-            user_language = None
-            if coder:
-                user_language = coder.get_user_language()
-            commit_message = self.get_commit_message(diffs, context, user_language)
+            commit_message = self.get_commit_message(diffs, context)
 
         # Retrieve attribute settings, prioritizing coder.args if available
         if coder and hasattr(coder, "args"):
@@ -323,7 +320,7 @@ class GitRepo:
         except (ValueError, OSError):
             return self.repo.git_dir
 
-    def get_commit_message(self, diffs, context, user_language=None):
+    def get_commit_message(self, diffs, context):
         diffs = "# Diffs:\n" + diffs
 
         content = ""
@@ -332,10 +329,7 @@ class GitRepo:
         content += diffs
 
         system_content = self.commit_prompt or prompts.commit_system
-        language_instruction = ""
-        if user_language:
-            language_instruction = f"\n- Is written in {user_language}."
-        system_content = system_content.format(language_instruction=language_instruction)
+        system_content = system_content.format()
 
         messages = [
             dict(role="system", content=system_content),

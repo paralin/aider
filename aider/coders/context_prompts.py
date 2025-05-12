@@ -19,8 +19,6 @@ Only return files that will need to be modified, not files that contain useful/r
 You are only to discuss EXISTING files and symbols.
 Only return existing files, don't suggest the names of new files or functions that we will need to create.
 
-Always reply to the user in {language}.
-
 Be concise in your replies.
 Return:
 1. A bulleted list of files the will need to be edited, and symbols that are highly relevant to the user's request.

@@ -1089,39 +1089,6 @@ class Coder:
         primary_lang_code = lang_code.replace("-", "_").split("_")[0].lower()
         return fallback.get(primary_lang_code, lang_code)
 
-    def get_user_language(self):
-        """
-        Detect the user's language preference and return a human-readable
-        language name such as ``English``. Detection order:
-
-        1. ``self.chat_language`` if explicitly set
-        2. ``locale.getlocale()``
-        3. ``LANG`` / ``LANGUAGE`` / ``LC_ALL`` / ``LC_MESSAGES`` environment variables
-        """
-
-        # Explicit override
-        if self.chat_language:
-            return self.normalize_language(self.chat_language)
-
-        # System locale
-        try:
-            lang = locale.getlocale()[0]
-            if lang:
-                lang = self.normalize_language(lang)
-            if lang:
-                return lang
-        except Exception:
-            pass
-
-        # Environment variables
-        for env_var in ("LANG", "LANGUAGE", "LC_ALL", "LC_MESSAGES"):
-            lang = os.environ.get(env_var)
-            if lang:
-                lang = lang.split(".")[0]  # Strip encoding if present
-                return self.normalize_language(lang)
-
-        return None
-
     def get_platform_info(self):
         platform_text = ""
         try:
@@ -1130,13 +1097,9 @@ class Coder:
             # Skip platform info if it can't be retrieved
             platform_text = "- Platform information unavailable\n"
 
-        shell_var = "COMSPEC" if os.name == "nt" else "SHELL"
-        shell_val = os.getenv(shell_var)
-        platform_text += f"- Shell: {shell_var}={shell_val}\n"
-
-        user_lang = self.get_user_language()
-        if user_lang:
-            platform_text += f"- Language: {user_lang}\n"
+        # shell_var = "COMSPEC" if os.name == "nt" else "SHELL"
+        # shell_val = os.getenv(shell_var)
+        # platform_text += f"- Shell: {shell_var}={shell_val}\n"
 
         dt = datetime.now().astimezone().strftime("%Y-%m-%d")
         platform_text += f"- Current date: {dt}\n"
@@ -1193,10 +1156,6 @@ class Coder:
         if self.main_model.overeager:
             final_reminders.append(self.gpt_prompts.overeager_prompt)
 
-        # user_lang = self.get_user_language()
-        # if user_lang:
-        #     final_reminders.append(f"Reply in {user_lang}.\n")
-
         platform_text = self.get_platform_info()
 
         if self.suggest_shell_commands:
@@ -1209,11 +1168,6 @@ class Coder:
                 platform=platform_text
             )
             rename_with_shell = ""
-
-        if user_lang:  # user_lang is the result of self.get_user_language()
-            language = user_lang
-        else:
-            language = "the same language they are using"  # Default if no specific lang detected
 
         if self.fence[0] == "`" * 4:
             quad_backtick_reminder = (
@@ -1234,7 +1188,6 @@ class Coder:
             rename_with_shell=rename_with_shell,
             shell_cmd_reminder=shell_cmd_reminder,
             go_ahead_tip=self.gpt_prompts.go_ahead_tip,
-            language=language,
         )
 
         return prompt
@@ -1382,7 +1335,7 @@ class Coder:
                 self.warming_pings_left -= 1
                 self.next_cache_warm = time.time() + delay
 
-                kwargs = dict(self.main_model.extra_params) or dict()
+                kwargs = dict(self.main_model.extra_params) if self.main_model.extra_params != None else dict()
                 kwargs["max_tokens"] = 1
 
                 try:
