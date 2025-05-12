@@ -25,7 +25,7 @@ except ImportError:  # Babel not installed – we will fall back to a small mapp
     Locale = None
 from json.decoder import JSONDecodeError
 from pathlib import Path
-from typing import List
+from typing import Dict, List
 
 from rich.console import Console
 
@@ -129,6 +129,7 @@ class Coder:
         io=None,
         from_coder=None,
         summarize_from_coder=True,
+        cort=False,
         **kwargs,
     ):
         import aider.coders as coders
@@ -180,6 +181,7 @@ class Coder:
                 total_tokens_sent=from_coder.total_tokens_sent,
                 total_tokens_received=from_coder.total_tokens_received,
                 file_watcher=from_coder.file_watcher,
+                cort=from_coder.cort_enabled if hasattr(from_coder, 'cort_enabled') else cort,
             )
             use_kwargs.update(update)  # override to complete the switch
             use_kwargs.update(kwargs)  # override passed kwargs
@@ -334,9 +336,11 @@ class Coder:
         auto_copy_context=False,
         auto_accept_architect=True,
         roo=False,
+        cort=False,
     ):
         # Fill in a dummy Analytics if needed, but it is never .enable()'d
         self.analytics = analytics if analytics is not None else Analytics()
+        self.cort_enabled = cort
 
         self.event = self.analytics.event
         self.chat_language = chat_language
@@ -1391,6 +1395,85 @@ class Coder:
         # Notify IO that LLM processing is starting
         self.io.llm_started()
 
+        if self.cort_enabled:
+            # For CORT, the user input `inp` is the primary prompt.
+            # CORT's internal mechanism will handle history.
+            # The result of CORT will be placed in self.partial_response_content.
+            yield from self._cort_think_and_respond(inp)
+
+            # After CORT, process the final response similar to the non-CORT path
+            if self.partial_response_function_call: # CORT prototype doesn't use this
+                content = self.partial_response_function_call.get("explanation", "")
+            elif self.partial_response_content:
+                content = self.partial_response_content
+            else:
+                content = ""
+
+            interrupted = False # CORT prototype doesn't handle interruption during its process
+
+            if not interrupted:
+                add_rel_files_message = self.check_for_file_mentions(content)
+                if add_rel_files_message:
+                    if self.reflected_message:
+                        self.reflected_message += "\n\n" + add_rel_files_message
+                    else:
+                        self.reflected_message = add_rel_files_message
+                    return # Reflection will be handled by the main loop
+
+                # reply_completed is specific to certain coders, CORT doesn't use it directly here
+                # if self.reply_completed():
+                # return
+
+            edited = self.apply_updates() # Uses self.partial_response_content set by CORT
+
+            if edited:
+                self.aider_edited_files.update(edited)
+                saved_message = self.auto_commit(edited) # Uses self.cur_messages which CORT updated
+
+                if not saved_message and hasattr(self.gpt_prompts, "files_content_gpt_edits_no_repo"):
+                    saved_message = self.gpt_prompts.files_content_gpt_edits_no_repo
+                # CORT already added its final response to cur_messages, then move_back_cur_messages handles it
+                self.move_back_cur_messages(saved_message)
+
+
+            if self.reflected_message: # If CORT or subsequent steps decided to reflect
+                return
+
+            if edited and self.auto_lint:
+                lint_errors = self.lint_edited(edited)
+                self.auto_commit(edited, context="Ran the linter") # Commit after lint
+                self.lint_outcome = not lint_errors
+                if lint_errors:
+                    ok = self.io.confirm_ask("Attempt to fix lint errors?")
+                    if ok:
+                        self.reflected_message = lint_errors
+                        return # Reflection handled by main loop
+
+            # Shell commands might be suggested by CORT's final output
+            # The current CORT prototype doesn't explicitly extract shell commands,
+            # but if they are in the final text, Aider's normal parsing might pick them up.
+            # For now, let's assume shell commands are handled by Aider's standard parsing of the final response.
+            # If CORT were to explicitly output shell commands, this would need adjustment.
+            shared_output = self.run_shell_commands() # Uses self.shell_commands, which might be populated if CORT's output contains them
+            if shared_output:
+                    # Add output to history, CORT's final response is already there
+                self.cur_messages += [
+                    dict(role="user", content=shared_output), # Representing the output of the command
+                    dict(role="assistant", content="Ok."), # Aider's ack of the command output
+                ]
+
+
+            if edited and self.auto_test:
+                test_errors = self.commands.cmd_test(self.test_cmd)
+                self.test_outcome = not test_errors
+                if test_errors:
+                    ok = self.io.confirm_ask("Attempt to fix test errors?")
+                    if ok:
+                        self.reflected_message = test_errors
+                        return # Reflection handled by main loop
+            return # CORT path finishes here
+
+        # Original non-CORT path starts here
         self.cur_messages += [
             dict(role="user", content=inp),
         ]
@@ -2452,3 +2535,325 @@ class Coder:
             line_plural = "line" if num_lines == 1 else "lines"
             self.io.tool_output(f"Added {num_lines} {line_plural} of output to the chat.")
             return accumulated_output
+
+    # CORT specific methods
+    def _cort_call_api_streaming(self, messages: List[Dict], temperature: float = 0.7) -> str:
+        """Internal CORT API call with streaming, returns full response string."""
+        full_response = ""
+        try:
+            if self.verbose:
+                self.io.tool_output(f"CORT Streaming API Call to {self.main_model.name} with {len(messages)} messages.")
+            response_stream = litellm.completion(
+                model=self.main_model.name,
+                messages=messages,
+                temperature=temperature,
+                stream=True,
+                # Potentially add other relevant params from self.main_model if needed for CORT calls
+            )
+            # self.io.tool_output("CORT API Call (Streaming):", log_only=not self.verbose) # Less noisy
+            chunk_num = 0
+            current_cort_pretty_stream = None
+            if self.show_pretty():
+                # Get a new mdstream for this specific CORT call's output.
+                # This stream is for display only and won't be added to chat history.
+                current_cort_pretty_stream = self.io.get_assistant_mdstream()
+
+            for chunk in response_stream:
+                chunk_num +=1
+                if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
+                    content = chunk.choices[0].delta.content
+                    full_response += content
+                    if current_cort_pretty_stream:
+                        current_cort_pretty_stream.update(content)
+                    else:
+                        # Non-pretty streaming directly to stdout, bypasses history
+                        try:
+                            sys.stdout.write(content)
+                        except UnicodeEncodeError:
+                            safe_content = content.encode(
+                                sys.stdout.encoding, errors="backslashreplace"
+                            ).decode(sys.stdout.encoding)
+                            sys.stdout.write(safe_content)
+                        sys.stdout.flush()
+
+            if current_cort_pretty_stream:
+                current_cort_pretty_stream.update("", final=True) # Finalize and print the mdstream
+            elif full_response and not self.show_pretty(): # Add a newline if we streamed anything non-pretty and non-empty
+                sys.stdout.write("\n")
+                sys.stdout.flush()
+
+            if self.verbose: # This log message *does* go to history if verbose
+                self.io.tool_output(f"CORT Streaming API Call completed after {chunk_num} chunks (content displayed above).")
+
+        except Exception as e:
+            self.io.tool_error(f"CORT Streaming API Error: {e}")
+            if self.verbose:
+                traceback.print_exc()
+            return "Error: Could not get streaming response from CORT API"
+        return full_response
+
+    def _cort_call_api_non_streaming(self, messages: List[Dict], temperature: float = 0.7) -> str:
+        """Internal CORT API call, non-streaming."""
+        try:
+            if self.verbose:
+                self.io.tool_output(f"CORT Non-Streaming API Call to {self.main_model.name} with {len(messages)} messages.")
+            completion = litellm.completion(
+                model=self.main_model.name,
+                messages=messages,
+                temperature=temperature,
+                stream=False,
+            )
+            # TODO: Add cost calculation for these CORT-specific calls to a separate CORT total
+            # For now, these internal calls won't be part of Aider's main cost tracking.
+            response_content = completion.choices[0].message.content.strip()
+            # self.io.assistant_output already handles pretty/non-pretty display
+            # and does NOT log to chat history by itself. This is correct.
+            self.io.assistant_output(response_content, pretty=self.show_pretty())
+            if self.verbose:
+                # This log message *does* go to history if verbose.
+                # The content itself was displayed by assistant_output above.
+                self.io.tool_output(
+                    f"CORT Non-Streaming Response (content displayed above via assistant_output)",
+                    log_only=not self.verbose # Ensure it only logs if verbose, doesn't print to console again
+                )
+            return response_content
+        except Exception as e:
+            self.io.tool_error(f"CORT Non-Streaming API Error: {e}")
+            if self.verbose:
+                traceback.print_exc()
+            return "Error: Could not get non-streaming response from CORT API"
+
+    def _cort_call_api(self, messages: List[Dict], temperature: float = 0.7, stream_override: bool = None) -> str:
+        """Wrapper for CORT API calls, respects self.stream unless overridden."""
+        # CORT's internal logic might prefer streaming for its iterative display,
+        # but we should also respect the global Aider stream setting.
+        # The prototype used `stream=True` for its print statements.
+        # Let's make CORT's internal calls always stream if Aider's main self.stream is True.
+        # stream_override can force a specific mode for a particular CORT call if needed.
+
+        effective_stream = self.stream
+        if stream_override is not None:
+            effective_stream = stream_override
+
+        if effective_stream:
+            return self._cort_call_api_streaming(messages, temperature)
+        else:
+            return self._cort_call_api_non_streaming(messages, temperature)
+
+
+    def _cort_determine_thinking_rounds(self, prompt: str) -> int:
+        """Let the model decide how many rounds of thinking are needed."""
+        meta_prompt = f"""Given this message: "{prompt}"
+
+How many rounds of iterative thinking (1-5) would be optimal to generate the best response?
+Consider the complexity and nuance required.
+Respond with just a number between 1 and 5."""
+        messages = [{"role": "user", "content": meta_prompt}]
+        self.io.tool_output("\n=== CORT: DETERMINING THINKING ROUNDS ===")
+        # For determining rounds, a non-streaming call is fine and simpler.
+        response = self._cort_call_api(messages, temperature=0.3, stream_override=False)
+        self.io.tool_output("=" * 50 + "\n", log_only=not self.verbose)
+        try:
+            rounds = int("".join(filter(str.isdigit, response)))
+            return min(max(rounds, 1), 5)
+        except ValueError: # Handle non-integer responses
+            self.io.tool_warning(f"CORT: Could not parse thinking rounds from response '{response}'. Defaulting to 3.")
+            return 3
+        except Exception as e: # Catch any other errors
+            self.io.tool_error(f"CORT: Error determining thinking rounds: {e}. Defaulting to 3.")
+            return 3
+
+    def _cort_generate_alternatives(
+        self, base_response: str, original_prompt: str, current_conversation_history: List[Dict], num_alternatives: int = 2
+    ) -> List[str]:
+        alternatives = []
+        # The conversation history for generating alternatives should be what led to the *base_response*.
+        # This means it should include the original_prompt that CORT is working on.
+        history_for_alternatives = current_conversation_history # This should already include the original_prompt
+
+        for i in range(num_alternatives):
+            self.io.tool_output(f"\n=== CORT: GENERATING ALTERNATIVE {i+1}/{num_alternatives} ===")
+            alt_prompt_content = f"""Original message: {original_prompt}
+
+Current best response being considered:
+{base_response}
+
+Please generate a significantly different and potentially better alternative response to the original message.
+Focus on a different angle, approach, or style. Be creative.
+Alternative response:"""
+
+            # We use the existing conversation history that led to `base_response`
+            # and then add this new user message to ask for an alternative.
+            messages_for_alt = history_for_alternatives + [{"role": "user", "content": alt_prompt_content}]
+
+            alternative = self._cort_call_api(
+                messages_for_alt, temperature=0.7 + i * 0.1 # Slightly increase temp for diversity
+            )
+            alternatives.append(alternative)
+            self.io.tool_output("=" * 50, log_only=not self.verbose)
+        return alternatives
+
+    def _cort_evaluate_responses(
+        self, original_prompt: str, current_best: str, alternatives: List[str]
+    ) -> tuple[str, str]:
+        self.io.tool_output("\n=== CORT: EVALUATING RESPONSES ===")
+        eval_prompt_content = f"""Original user message:
+{original_prompt}
+
+I have a "current best" response and some "alternatives". Please help me choose the best one.
+
+Current best response:
+{current_best}
+
+Alternatives:
+{chr(10).join([f"Alternative {i+1}: {alt}" for i, alt in enumerate(alternatives)])}
+
+Which response is the overall best for the original user message? Consider accuracy, completeness, clarity, and how well it fulfills the user's likely intent.
+Respond with ONLY the word 'current' or the number of the best alternative (e.g., '1', '2', etc.).
+Then, on a new line, provide a brief (1-2 sentences) explanation for your choice."""
+
+        # Evaluation should be done with a fresh perspective, not using the main chat history.
+        messages_for_eval = [{"role": "user", "content": eval_prompt_content}]
+        evaluation = self._cort_call_api(messages_for_eval, temperature=0.2, stream_override=False) # Low temp for consistent eval
+        self.io.tool_output("=" * 50, log_only=not self.verbose)
+
+        lines = [line.strip() for line in evaluation.split("\n") if line.strip()]
+        choice_str = "current"
+        explanation = "No explanation provided or error in parsing evaluation."
+
+        if lines:
+            first_line_cleaned = lines[0].lower().strip().replace('.', '') # Clean '1.' -> '1'
+            if "current" in first_line_cleaned:
+                choice_str = "current"
+            else:
+                # Extract first sequence of digits
+                match = re.search(r'\d+', first_line_cleaned)
+                if match:
+                    choice_str = match.group(0)
+
+            if len(lines) > 1:
+                explanation = " ".join(lines[1:])
+            elif not first_line_cleaned.isdigit() and "current" not in first_line_cleaned : # if first line was explanation
+                explanation = lines[0]
+
+
+        if choice_str == "current":
+            return current_best, explanation
+        else:
+            try:
+                alt_index = int(choice_str) - 1
+                if 0 <= alt_index < len(alternatives):
+                    return alternatives[alt_index], explanation
+            except ValueError:
+                self.io.tool_warning(f"CORT: Could not parse evaluation choice '{choice_str}'. Defaulting to current best.")
+            except IndexError:
+                 self.io.tool_warning(f"CORT: Evaluation choice '{choice_str}' out of range. Defaulting to current best.")
+
+        return current_best, explanation
+
+
+    def _cort_think_and_respond(self, user_input: str):
+        """Process user input with CORT and stream the final response."""
+        self.usage_report = None # Initialize for CORT path
+        self.io.tool_output("\n" + "=" * 50)
+        self.io.tool_output("🤔 CORT: RECURSIVE THINKING PROCESS STARTING")
+        self.io.tool_output("=" * 50)
+
+        # Get Aider's conversation history *before* this new user_input
+        # This history will be used as the base for CORT's internal calls.
+        # format_messages() includes system prompts, repo maps, files etc.
+        # all_messages_except_cur() gets everything *before* the current `user_input` is added.
+        base_aider_history_messages = self.done_messages
+
+        thinking_rounds = self._cort_determine_thinking_rounds(user_input)
+        self.io.tool_output(f"\n🤔 CORT: Thinking... ({thinking_rounds} rounds needed based on initial assessment)")
+
+        # Initial response generation
+        self.io.tool_output("\n=== CORT: GENERATING INITIAL RESPONSE ===")
+        # For the very first call in CORT, we add the new user_input to the existing history
+        messages_for_initial_cort_call = base_aider_history_messages + [{"role": "user", "content": user_input}]
+        current_best_response = self._cort_call_api(messages_for_initial_cort_call) # Uses self.stream by default
+        self.io.tool_output("=" * 50, log_only=not self.verbose)
+
+        # Iterative improvement loop
+        for round_num in range(1, thinking_rounds + 1):
+            self.io.tool_output(f"\n=== CORT: IMPROVEMENT ROUND {round_num}/{thinking_rounds} ===")
+            # For generating alternatives, the "prompt" is the original user_input.
+            # The "conversation_history" for _cort_generate_alternatives should be what led to current_best_response.
+            # This is effectively `messages_for_initial_cort_call` if it's the first improvement round,
+            # or a history that reflects previous CORT choices.
+            # For simplicity, we'll use the `messages_for_initial_cort_call` as the base history for generating alternatives.
+            # A more advanced CORT might build a separate CORT-internal history.
+            alternatives = self._cort_generate_alternatives(current_best_response, user_input, messages_for_initial_cort_call)
+
+            if not alternatives:
+                self.io.tool_output("CORT: No alternatives generated, keeping current best.")
+                break # Exit if no alternatives were produced
+
+            new_best_candidate, explanation = self._cort_evaluate_responses(
+                user_input, current_best_response, alternatives
+            )
+
+            if new_best_candidate != current_best_response:
+                current_best_response = new_best_candidate
+                self.io.tool_output(f"\n    👍 CORT: New best response selected this round: {explanation}")
+            else:
+                self.io.tool_output(f"\n    ✅ CORT: Kept current response as best this round: {explanation}")
+                # Optional: if current best is kept for too many rounds, could break early.
+                # For now, we complete all determined rounds.
+
+        self.io.tool_output("\n" + "=" * 50)
+        self.io.tool_output("🎯 CORT: FINAL RESPONSE SELECTED")
+        self.io.tool_output("=" * 50)
+        # self.io.tool_output(f"\n🤖 CORT FINAL RESPONSE (raw): {current_best_response}\n") # For debugging
+
+        # Integrate CORT's final response back into Aider's flow
+        self.partial_response_content = current_best_response
+
+        # Add the original user input and CORT's final assistant response to Aider's `cur_messages`
+        # This ensures it's part of the official chat history for Aider.
+        self.cur_messages += [
+            dict(role="user", content=user_input),
+            # The assistant message will be the one CORT decided on.
+            # `add_assistant_reply_to_cur_messages` will handle this based on `self.partial_response_content`
+        ]
+
+        # Stream the final chosen response to the user via Aider's usual output mechanisms
+        if self.stream:
+            if self.show_pretty():
+                self.mdstream = self.io.get_assistant_mdstream()
+
+            # Clear partial_response_content before streaming the final version piece by piece
+            # as self.partial_response_content is used by render_incremental_response
+            streamed_so_far = ""
+            for char_code in current_best_response:
+                streamed_so_far += char_code
+                self.partial_response_content = streamed_so_far # Update for live rendering
+
+                if self.show_pretty():
+                    self.live_incremental_response(False) # Update markdown stream
+                else:
+                    # Simple stdout for non-pretty streaming
+                    try:
+                        sys.stdout.write(char_code)
+                    except UnicodeEncodeError:
+                        safe_char = char_code.encode(sys.stdout.encoding, errors="backslashreplace").decode(sys.stdout.encoding)
+                        sys.stdout.write(safe_char)
+                    sys.stdout.flush()
+                yield char_code # Yield for potential external consumers of the stream
+
+            self.partial_response_content = current_best_response # Ensure it's fully set after stream
+
+            if self.mdstream:
+                self.live_incremental_response(True) # Finalize markdown stream
+                self.mdstream = None
+        else:
+            # Non-streaming: Aider's main flow will print self.partial_response_content
+            self.io.assistant_output(current_best_response, pretty=self.show_pretty())
+            yield current_best_response # Yield for consistency, though not strictly needed for non-stream
+
+        # Cost calculation for CORT's internal calls is complex and not fully integrated here.
+        # Aider's `show_usage_report` will run based on the *final interaction* (user_input + CORT's final response).
+        # This is an approximation and doesn't account for CORT's internal LLM calls.
+        self.show_usage_report()
+        self.add_assistant_reply_to_cur_messages() # This correctly adds CORT's final response to history

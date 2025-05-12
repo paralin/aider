@@ -694,6 +694,12 @@ def get_parser(default_config_files, git_root):
     ######
     group = parser.add_argument_group("Other settings")
     group.add_argument(
+        "--cort",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Enable Chain of Recursive Thought (default: False)",
+    )
+    group.add_argument(
         "--disable-playwright",
         action="store_true",
         help="Never prompt for or attempt to install Playwright for web scraping (default: False).",

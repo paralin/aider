@@ -997,6 +997,7 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
             auto_copy_context=args.copy_paste,
             auto_accept_architect=args.auto_accept_architect,
             roo=args.roo,
+            cort=args.cort,
         )
     except UnknownEditFormat as err:
         io.tool_error(str(err))
@@ -1163,6 +1164,10 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
             kwargs.update(switch.kwargs)
             if "show_announcements" in kwargs:
                 del kwargs["show_announcements"]
+
+            # Preserve the cort state from the old coder if not specified in switch.kwargs
+            if 'cort' not in kwargs and hasattr(coder, 'cort_enabled'):
+                 kwargs['cort'] = coder.cort_enabled
 
             coder = Coder.create(**kwargs)
 

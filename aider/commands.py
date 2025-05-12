@@ -1587,6 +1587,12 @@ class Commands:
         # Output announcements
         announcements = "\n".join(self.coder.get_announcements())
         self.io.tool_output(announcements)
+        
+    def cmd_cort(self, args):
+        "Toggle Chain of Recursive Thinking (CORT) for response generation"
+        self.coder.cort_enabled = not self.coder.cort_enabled
+        status = "enabled" if self.coder.cort_enabled else "disabled"
+        self.io.tool_output(f"Chain of Recursive Thinking (CORT) is now {status}")
 
     def cmd_copy_context(self, args=None):
         """Copy the current chat context as markdown, suitable to paste into a web UI"""
