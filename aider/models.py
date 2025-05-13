@@ -98,6 +98,9 @@ MODEL_ALIASES = {
     "gemini-exp": "gemini/gemini-2.5-pro-exp-03-25",
     "grok3": "xai/grok-3-beta",
     "optimus": "openrouter/openrouter/optimus-alpha",
+    "copilot-sonnet": "copilot/claude-3.7-sonnet",
+    "copilot-pro": "copilot/gemini-2.5-pro",
+    "copilot-flash": "copilot/gemini-2.5-flash",
 }
 # Model metadata loaded from resources and user's files.
 
@@ -680,6 +683,7 @@ class Model(ModelSettings):
             anthropic="ANTHROPIC_API_KEY",
             groq="GROQ_API_KEY",
             fireworks_ai="FIREWORKS_API_KEY",
+            copilot="COPILOT_API_KEY",
         )
         var = None
         if model in OPENAI_MODELS:

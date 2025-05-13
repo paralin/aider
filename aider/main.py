@@ -615,6 +615,10 @@ def main(argv=None, input=None, output=None, force_git_root=None, return_coder=F
     if args.openai_api_key:
         os.environ["OPENAI_API_KEY"] = args.openai_api_key
 
+    if args.copilot_api_key:
+        os.environ["COPILOT_API_KEY"] = args.copilot_api_key
+        os.environ["OPENAI_API_BASE"] = "https://api.githubcopilot.com"
+
     # Handle deprecated model shortcut args
     handle_deprecated_model_args(args, io)
     if args.openai_api_base:

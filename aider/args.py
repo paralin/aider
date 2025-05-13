@@ -62,6 +62,10 @@ def get_parser(default_config_files, git_root):
         help="Specify the Anthropic API key",
     )
     group.add_argument(
+        "--copilot-api-key",
+        help="Specify the GitHub Copilot API key",
+    )
+    group.add_argument(
         "--openai-api-base",
         help="Specify the api base url",
     )
