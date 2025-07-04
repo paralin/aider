@@ -152,6 +152,13 @@ class Coder:
         if not io and from_coder:
             io = from_coder.io
 
+        # If CORT is enabled, instantiate CortCoder instead of regular coder
+        if cort:
+            from .cort_coder import CortCoder
+            res = CortCoder(main_model, io, **kwargs)
+            res.original_kwargs = dict(kwargs)
+            return res
+
         if from_coder:
             use_kwargs = dict(from_coder.original_kwargs)  # copy orig kwargs
 
@@ -344,6 +351,11 @@ class Coder:
         # Fill in a dummy Analytics if needed, but it is never .enable()'d
         self.analytics = analytics if analytics is not None else Analytics()
         self.cort_enabled = cort
+
+        # CORT delegation infrastructure
+        self._cort_delegate = None
+        self.original_kwargs = locals().copy()  # Store original kwargs for delegation
+        self.original_kwargs.pop('self', None)  # Remove self reference
 
         self.event = self.analytics.event
         self.chat_language = chat_language
@@ -2542,105 +2554,88 @@ class Coder:
             self.io.tool_output(f"Added {num_lines} {line_plural} of output to the chat.")
             return accumulated_output
 
-    # CORT specific methods
-    def _cort_call_api_streaming(self, messages: List[Dict], temperature: float = 0.7) -> str:
-        """Internal CORT API call with streaming, returns full response string."""
-        full_response = ""
-        try:
-            if self.verbose:
-                self.io.tool_output(f"CORT Streaming API Call to {self.main_model.name} with {len(messages)} messages.")
-            response_stream = litellm.completion(
-                model=self.main_model.name,
-                messages=messages,
-                temperature=temperature,
-                stream=True,
-                # Potentially add other relevant params from self.main_model if needed for CORT calls
+    # CORT delegation infrastructure
+    def _get_cort_delegate(self):
+        """Get or create CortCoder delegate instance"""
+        if self._cort_delegate is None:
+            from .cort_coder import CortCoder
+            # Create CortCoder with same configuration as this coder
+            kwargs = dict(self.original_kwargs)
+            kwargs.pop('cort', None)  # Remove cort flag to avoid recursion
+            self._cort_delegate = CortCoder(
+                main_model=self.main_model,
+                io=self.io,
+                **kwargs
             )
-            # self.io.tool_output("CORT API Call (Streaming):", log_only=not self.verbose) # Less noisy
-            chunk_num = 0
-            current_cort_pretty_stream = None
-            if self.show_pretty():
-                # Get a new mdstream for this specific CORT call's output.
-                # This stream is for display only and won't be added to chat history.
-                current_cort_pretty_stream = self.io.get_assistant_mdstream()
+        return self._cort_delegate
 
-            for chunk in response_stream:
-                chunk_num +=1
-                if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
-                    content = chunk.choices[0].delta.content
-                    full_response += content
-                    if current_cort_pretty_stream:
-                        current_cort_pretty_stream.update(content)
-                    else:
-                        # Non-pretty streaming directly to stdout, bypasses history
-                        try:
-                            sys.stdout.write(content)
-                        except UnicodeEncodeError:
-                            safe_content = content.encode(
-                                sys.stdout.encoding, errors="backslashreplace"
-                            ).decode(sys.stdout.encoding)
-                            sys.stdout.write(safe_content)
-                        sys.stdout.flush()
+    def _sync_state_to_cort_delegate(self, cort_delegate):
+        """Sync current BaseCoder state to CortCoder delegate"""
+        # Core conversation state
+        cort_delegate.cur_messages = list(self.cur_messages)
+        cort_delegate.done_messages = list(self.done_messages)
+        
+        # Model and configuration state
+        cort_delegate.main_model = self.main_model
+        cort_delegate.temperature = getattr(self, 'temperature', None)
+        cort_delegate.stream = self.stream
+        
+        # File and repository state
+        cort_delegate.abs_fnames = set(self.abs_fnames)
+        cort_delegate.abs_read_only_fnames = set(self.abs_read_only_fnames)
+        cort_delegate.repo = self.repo
+        
+        # Other relevant state
+        cort_delegate.verbose = self.verbose
+        cort_delegate.show_diffs = self.show_diffs
 
-            if current_cort_pretty_stream:
-                current_cort_pretty_stream.update("", final=True) # Finalize and print the mdstream
-            elif full_response and not self.show_pretty(): # Add a newline if we streamed anything non-pretty and non-empty
-                sys.stdout.write("\n")
-                sys.stdout.flush()
+    def _sync_state_from_cort_delegate(self, cort_delegate):
+        """Sync CortCoder delegate state back to BaseCoder"""
+        # Update conversation history
+        self.cur_messages = list(cort_delegate.cur_messages)
+        self.done_messages = list(cort_delegate.done_messages)
+        
+        # Update costs and usage
+        if hasattr(cort_delegate, 'total_cost'):
+            self.total_cost += getattr(cort_delegate, 'message_cost', 0)
+        if hasattr(cort_delegate, 'total_tokens_sent'):
+            self.total_tokens_sent += getattr(cort_delegate, 'message_tokens_sent', 0)
+        if hasattr(cort_delegate, 'total_tokens_received'):
+            self.total_tokens_received += getattr(cort_delegate, 'message_tokens_received', 0)
 
-            if self.verbose: # This log message *does* go to history if verbose
-                self.io.tool_output(f"CORT Streaming API Call completed after {chunk_num} chunks (content displayed above).")
+    def _delegate_to_cort_coder(self, method_name: str, *args, **kwargs):
+        """Delegate CORT operations to CortCoder instance"""
+        cort_delegate = self._get_cort_delegate()
+        
+        # Sync current state to delegate
+        self._sync_state_to_cort_delegate(cort_delegate)
+        
+        # Call the method on delegate
+        result = getattr(cort_delegate, method_name)(*args, **kwargs)
+        
+        # Sync state back
+        self._sync_state_from_cort_delegate(cort_delegate)
+        
+        return result
 
-        except Exception as e:
-            self.io.tool_error(f"CORT Streaming API Error: {e}")
-            if self.verbose:
-                traceback.print_exc()
-            return "Error: Could not get streaming response from CORT API"
-        return full_response
+    # CORT specific methods - now delegating to CortCoder
+    def _cort_call_api_streaming(self, messages: List[Dict], temperature: float = 0.7) -> str:
+        """Delegate streaming API calls to CortCoder's threading manager"""
+        cort_delegate = self._get_cort_delegate()
+        return cort_delegate.threading_manager._make_api_call(
+            messages, temperature=temperature, stream=True
+        )
 
     def _cort_call_api_non_streaming(self, messages: List[Dict], temperature: float = 0.7) -> str:
-        """Internal CORT API call, non-streaming."""
-        try:
-            if self.verbose:
-                self.io.tool_output(f"CORT Non-Streaming API Call to {self.main_model.name} with {len(messages)} messages.")
-            completion = litellm.completion(
-                model=self.main_model.name,
-                messages=messages,
-                temperature=temperature,
-                stream=False,
-            )
-            # TODO: Add cost calculation for these CORT-specific calls to a separate CORT total
-            # For now, these internal calls won't be part of Aider's main cost tracking.
-            response_content = completion.choices[0].message.content.strip()
-            # self.io.assistant_output already handles pretty/non-pretty display
-            # and does NOT log to chat history by itself. This is correct.
-            self.io.assistant_output(response_content, pretty=self.show_pretty())
-            if self.verbose:
-                # This log message *does* go to history if verbose.
-                # The content itself was displayed by assistant_output above.
-                self.io.tool_output(
-                    f"CORT Non-Streaming Response (content displayed above via assistant_output)",
-                    log_only=not self.verbose # Ensure it only logs if verbose, doesn't print to console again
-                )
-            return response_content
-        except Exception as e:
-            self.io.tool_error(f"CORT Non-Streaming API Error: {e}")
-            if self.verbose:
-                traceback.print_exc()
-            return "Error: Could not get non-streaming response from CORT API"
+        """Delegate non-streaming API calls to CortCoder's threading manager"""
+        cort_delegate = self._get_cort_delegate()
+        return cort_delegate.threading_manager._make_api_call(
+            messages, temperature=temperature, stream=False
+        )
 
     def _cort_call_api(self, messages: List[Dict], temperature: float = 0.7, stream_override: bool = None) -> str:
-        """Wrapper for CORT API calls, respects self.stream unless overridden."""
-        # CORT's internal logic might prefer streaming for its iterative display,
-        # but we should also respect the global Aider stream setting.
-        # The prototype used `stream=True` for its print statements.
-        # Let's make CORT's internal calls always stream if Aider's main self.stream is True.
-        # stream_override can force a specific mode for a particular CORT call if needed.
-
-        effective_stream = self.stream
-        if stream_override is not None:
-            effective_stream = stream_override
-
+        """Unified delegation for CORT API calls"""
+        effective_stream = self.stream if stream_override is None else stream_override
         if effective_stream:
             return self._cort_call_api_streaming(messages, temperature)
         else:
@@ -2648,218 +2643,48 @@ class Coder:
 
 
     def _cort_determine_thinking_rounds(self, prompt: str) -> int:
-        """Let the model decide how many rounds of thinking are needed."""
-        meta_prompt = f"""Given this message: "{prompt}"
-
-How many rounds of iterative thinking (1-5) would be optimal to generate the best response?
-Consider the complexity and nuance required.
-Respond with just a number between 1 and 5."""
-        messages = [{"role": "user", "content": meta_prompt}]
-        self.io.tool_output("\n=== CORT: DETERMINING THINKING ROUNDS ===")
-        # For determining rounds, a non-streaming call is fine and simpler.
-        response = self._cort_call_api(messages, temperature=0.3, stream_override=False)
-        self.io.tool_output("=" * 50 + "\n", log_only=not self.verbose)
-        try:
-            rounds = int("".join(filter(str.isdigit, response)))
-            return min(max(rounds, 1), 5)
-        except ValueError: # Handle non-integer responses
-            self.io.tool_warning(f"CORT: Could not parse thinking rounds from response '{response}'. Defaulting to 3.")
-            return 3
-        except Exception as e: # Catch any other errors
-            self.io.tool_error(f"CORT: Error determining thinking rounds: {e}. Defaulting to 3.")
-            return 3
+        """Delegate thinking rounds determination to CortCoder"""
+        cort_delegate = self._get_cort_delegate()
+        return cort_delegate.conversation_manager._determine_thinking_rounds(prompt)
 
     def _cort_generate_alternatives(
         self, base_response: str, original_prompt: str, current_conversation_history: List[Dict], num_alternatives: int = 2
     ) -> List[str]:
-        alternatives = []
-        # The conversation history for generating alternatives should be what led to the *base_response*.
-        # This means it should include the original_prompt that CORT is working on.
-        history_for_alternatives = current_conversation_history # This should already include the original_prompt
-
-        for i in range(num_alternatives):
-            self.io.tool_output(f"\n=== CORT: GENERATING ALTERNATIVE {i+1}/{num_alternatives} ===")
-            alt_prompt_content = f"""Original message: {original_prompt}
-
-Current best response being considered:
-{base_response}
-
-Please generate a significantly different and potentially better alternative response to the original message.
-Focus on a different angle, approach, or style. Be creative.
-Alternative response:"""
-
-            # We use the existing conversation history that led to `base_response`
-            # and then add this new user message to ask for an alternative.
-            messages_for_alt = history_for_alternatives + [{"role": "user", "content": alt_prompt_content}]
-
-            alternative = self._cort_call_api(
-                messages_for_alt, temperature=0.7 + i * 0.1 # Slightly increase temp for diversity
-            )
-            alternatives.append(alternative)
-            self.io.tool_output("=" * 50, log_only=not self.verbose)
-        return alternatives
+        """Delegate alternative generation to CortCoder"""
+        cort_delegate = self._get_cort_delegate()
+        return cort_delegate.conversation_manager._generate_alternatives(
+            base_response, original_prompt, current_round=1  # Round number for alternatives
+        )
 
     def _cort_evaluate_responses(
         self, original_prompt: str, current_best: str, alternatives: List[str]
     ) -> tuple[str, str]:
-        self.io.tool_output("\n=== CORT: EVALUATING RESPONSES ===")
-        eval_prompt_content = f"""Original user message:
-{original_prompt}
-
-I have a "current best" response and some "alternatives". Please help me choose the best one.
-
-Current best response:
-{current_best}
-
-Alternatives:
-{chr(10).join([f"Alternative {i+1}: {alt}" for i, alt in enumerate(alternatives)])}
-
-Which response is the overall best for the original user message? Consider accuracy, completeness, clarity, and how well it fulfills the user's likely intent.
-Respond with ONLY the word 'current' or the number of the best alternative (e.g., '1', '2', etc.).
-Then, on a new line, provide a brief (1-2 sentences) explanation for your choice."""
-
-        # Evaluation should be done with a fresh perspective, not using the main chat history.
-        messages_for_eval = [{"role": "user", "content": eval_prompt_content}]
-        evaluation = self._cort_call_api(messages_for_eval, temperature=0.2, stream_override=False) # Low temp for consistent eval
-        self.io.tool_output("=" * 50, log_only=not self.verbose)
-
-        lines = [line.strip() for line in evaluation.split("\n") if line.strip()]
-        choice_str = "current"
-        explanation = "No explanation provided or error in parsing evaluation."
-
-        if lines:
-            first_line_cleaned = lines[0].lower().strip().replace('.', '') # Clean '1.' -> '1'
-            if "current" in first_line_cleaned:
-                choice_str = "current"
-            else:
-                # Extract first sequence of digits
-                match = re.search(r'\d+', first_line_cleaned)
-                if match:
-                    choice_str = match.group(0)
-
-            if len(lines) > 1:
-                explanation = " ".join(lines[1:])
-            elif not first_line_cleaned.isdigit() and "current" not in first_line_cleaned : # if first line was explanation
-                explanation = lines[0]
-
-
-        if choice_str == "current":
-            return current_best, explanation
-        else:
-            try:
-                alt_index = int(choice_str) - 1
-                if 0 <= alt_index < len(alternatives):
-                    return alternatives[alt_index], explanation
-            except ValueError:
-                self.io.tool_warning(f"CORT: Could not parse evaluation choice '{choice_str}'. Defaulting to current best.")
-            except IndexError:
-                 self.io.tool_warning(f"CORT: Evaluation choice '{choice_str}' out of range. Defaulting to current best.")
-
-        return current_best, explanation
+        """Delegate response evaluation to CortCoder"""
+        cort_delegate = self._get_cort_delegate()
+        evaluation_result = cort_delegate.conversation_manager._evaluate_responses(
+            original_prompt, current_best, alternatives
+        )
+        return evaluation_result.selected_response, evaluation_result.evaluation_reasoning
 
 
     def _cort_think_and_respond(self, user_input: str):
-        """Process user input with CORT and stream the final response."""
-        self.usage_report = None # Initialize for CORT path
-        self.io.tool_output("\n" + "=" * 50)
-        self.io.tool_output("🤔 CORT: RECURSIVE THINKING PROCESS STARTING")
-        self.io.tool_output("=" * 50)
-
-        # Get Aider's conversation history *before* this new user_input
-        # This history will be used as the base for CORT's internal calls.
-        # format_messages() includes system prompts, repo maps, files etc.
-        # all_messages_except_cur() gets everything *before* the current `user_input` is added.
-        base_aider_history_messages = self.done_messages
-
-        thinking_rounds = self._cort_determine_thinking_rounds(user_input)
-        self.io.tool_output(f"\n🤔 CORT: Thinking... ({thinking_rounds} rounds needed based on initial assessment)")
-
-        # Initial response generation
-        self.io.tool_output("\n=== CORT: GENERATING INITIAL RESPONSE ===")
-        # For the very first call in CORT, we add the new user_input to the existing history
-        messages_for_initial_cort_call = base_aider_history_messages + [{"role": "user", "content": user_input}]
-        current_best_response = self._cort_call_api(messages_for_initial_cort_call) # Uses self.stream by default
-        self.io.tool_output("=" * 50, log_only=not self.verbose)
-
-        # Iterative improvement loop
-        for round_num in range(1, thinking_rounds + 1):
-            self.io.tool_output(f"\n=== CORT: IMPROVEMENT ROUND {round_num}/{thinking_rounds} ===")
-            # For generating alternatives, the "prompt" is the original user_input.
-            # The "conversation_history" for _cort_generate_alternatives should be what led to current_best_response.
-            # This is effectively `messages_for_initial_cort_call` if it's the first improvement round,
-            # or a history that reflects previous CORT choices.
-            # For simplicity, we'll use the `messages_for_initial_cort_call` as the base history for generating alternatives.
-            # A more advanced CORT might build a separate CORT-internal history.
-            alternatives = self._cort_generate_alternatives(current_best_response, user_input, messages_for_initial_cort_call)
-
-            if not alternatives:
-                self.io.tool_output("CORT: No alternatives generated, keeping current best.")
-                break # Exit if no alternatives were produced
-
-            new_best_candidate, explanation = self._cort_evaluate_responses(
-                user_input, current_best_response, alternatives
-            )
-
-            if new_best_candidate != current_best_response:
-                current_best_response = new_best_candidate
-                self.io.tool_output(f"\n    👍 CORT: New best response selected this round: {explanation}")
-            else:
-                self.io.tool_output(f"\n    ✅ CORT: Kept current response as best this round: {explanation}")
-                # Optional: if current best is kept for too many rounds, could break early.
-                # For now, we complete all determined rounds.
-
-        self.io.tool_output("\n" + "=" * 50)
-        self.io.tool_output("🎯 CORT: FINAL RESPONSE SELECTED")
-        self.io.tool_output("=" * 50)
-        # self.io.tool_output(f"\n🤖 CORT FINAL RESPONSE (raw): {current_best_response}\n") # For debugging
-
-        # Integrate CORT's final response back into Aider's flow
-        self.partial_response_content = current_best_response
-
-        # Add the original user input and CORT's final assistant response to Aider's `cur_messages`
-        # This ensures it's part of the official chat history for Aider.
-        self.cur_messages += [
-            dict(role="user", content=user_input),
-            # The assistant message will be the one CORT decided on.
-            # `add_assistant_reply_to_cur_messages` will handle this based on `self.partial_response_content`
-        ]
-
-        # Stream the final chosen response to the user via Aider's usual output mechanisms
-        if self.stream:
-            if self.show_pretty():
-                self.mdstream = self.io.get_assistant_mdstream()
-
-            # Clear partial_response_content before streaming the final version piece by piece
-            # as self.partial_response_content is used by render_incremental_response
-            streamed_so_far = ""
-            for char_code in current_best_response:
-                streamed_so_far += char_code
-                self.partial_response_content = streamed_so_far # Update for live rendering
-
-                if self.show_pretty():
-                    self.live_incremental_response(False) # Update markdown stream
-                else:
-                    # Simple stdout for non-pretty streaming
-                    try:
-                        sys.stdout.write(char_code)
-                    except UnicodeEncodeError:
-                        safe_char = char_code.encode(sys.stdout.encoding, errors="backslashreplace").decode(sys.stdout.encoding)
-                        sys.stdout.write(safe_char)
-                    sys.stdout.flush()
-                yield char_code # Yield for potential external consumers of the stream
-
-            self.partial_response_content = current_best_response # Ensure it's fully set after stream
-
-            if self.mdstream:
-                self.live_incremental_response(True) # Finalize markdown stream
-                self.mdstream = None
-        else:
-            # Non-streaming: Aider's main flow will print self.partial_response_content
-            self.io.assistant_output(current_best_response, pretty=self.show_pretty())
-            yield current_best_response # Yield for consistency, though not strictly needed for non-stream
-
-        # Cost calculation for CORT's internal calls is complex and not fully integrated here.
-        # Aider's `show_usage_report` will run based on the *final interaction* (user_input + CORT's final response).
-        # This is an approximation and doesn't account for CORT's internal LLM calls.
-        self.show_usage_report()
-        self.add_assistant_reply_to_cur_messages() # This correctly adds CORT's final response to history
+        """Delegate CORT processing to CortCoder instance"""
+        try:
+            # Delegate to CortCoder's send_message method
+            yield from self._delegate_to_cort_coder('send_message', user_input)
+        except Exception as e:
+            self.io.tool_error(f"CORT delegation failed: {e}")
+            self.io.tool_output("Falling back to normal processing...")
+            # Fallback: disable CORT temporarily and process normally
+            original_cort_enabled = self.cort_enabled
+            self.cort_enabled = False
+            try:
+                # Process through normal Aider flow
+                self.cur_messages += [dict(role="user", content=user_input)]
+                chunks = self.format_messages()
+                messages = chunks.all_messages()
+                if not self.check_tokens(messages):
+                    return
+                yield from self.send(messages, functions=self.functions)
+            finally:
+                self.cort_enabled = original_cort_enabled

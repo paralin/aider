@@ -1620,6 +1620,15 @@ class Commands:
         status = "enabled" if self.coder.cort_enabled else "disabled"
         self.io.tool_output(f"Chain of Recursive Thinking (CORT) is now {status}")
 
+        # Show additional info if CortCoder is active
+        if self.coder.cort_enabled and hasattr(self.coder, '__class__') and 'CortCoder' in str(self.coder.__class__):
+            self.io.tool_output("Using new CortCoder architecture")
+            # Show session info if available
+            if hasattr(self.coder, 'get_cort_session_summary'):
+                summary = self.coder.get_cort_session_summary()
+                if summary.get('status') != 'no_active_session':
+                    self.io.tool_output(f"Active session: {summary.get('session_id', 'N/A')}")
+
     def cmd_copy_context(self, args=None):
         """Copy the current chat context as markdown, suitable to paste into a web UI"""
 
