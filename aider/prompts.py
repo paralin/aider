@@ -19,9 +19,6 @@ Ensure the commit message:
 - Does not exceed 72 characters.
 
 Reply only with the one-line commit message, without any additional text, explanations, or line breaks.
-
-Reply only with the one-line commit message, without any additional text, explanations, \
-or line breaks.
 """
 
 # COMMANDS
